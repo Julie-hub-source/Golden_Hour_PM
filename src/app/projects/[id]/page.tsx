@@ -1,0 +1,238 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { loadProjectData } from '@/lib/repo';
+import { currentAccount } from '@/lib/session';
+import { runDueAlerts } from '@/lib/notify';
+import { can } from '@/lib/permissions';
+import { dependencySchedule, isClosed, envsPresent } from '@/lib/schedule';
+import { formatDate } from '@/lib/calendar';
+import { STATUSES, STATUS_LABEL, type Status, type Task } from '@/lib/types';
+import { AutoSelect } from '@/components/AutoSelect';
+import { ProjectNav } from '@/components/ProjectNav';
+import { updateTask } from '@/app/actions';
+
+export const dynamic = 'force-dynamic';
+
+const DURATIONS = Array.from({ length: 21 }, (_, i) => String(i));
+
+interface SearchParams {
+  pic?: string;
+  env?: string;
+  status?: string;
+}
+
+export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SearchParams> }) {
+  const { id } = await params;
+  const sp = await searchParams;
+  const { actor } = await currentAccount();
+  await runDueAlerts();
+  const data = await loadProjectData(id);
+  if (!data) notFound();
+
+  const { project, members, tasks, memberIds } = data;
+  const memberById = new Map(members.map((m) => [m.id, m]));
+  const projectMembers = members.filter((m) => memberIds.includes(m.id));
+  const scope = { projectMemberIds: new Set(memberIds) };
+  const schedule = dependencySchedule(tasks, project.startDate);
+  const taskById = new Map(tasks.map((t) => [t.id, t]));
+
+  // Filters combine with AND
+  const envOptions = envsPresent(tasks);
+  const filtered = tasks.filter((t) => {
+    if (sp.pic && (sp.pic === 'none' ? t.picId !== null : t.picId !== sp.pic)) return false;
+    if (sp.env && t.environment !== sp.env) return false;
+    if (sp.status && t.status !== sp.status) return false;
+    return true;
+  });
+
+  const canCreate = can(actor, 'task.create', scope).ok;
+  const documents = project.documents.split('\n').map((l) => l.trim()).filter(Boolean);
+
+  return (
+    <>
+      <ProjectNav projectId={id} name={project.name} active="board" />
+
+      <div className="row small muted" style={{ marginBottom: 12, gap: 18 }}>
+        <span>Start {formatDate(project.startDate)}</span>
+        <span>Prod commit {formatDate(project.commitProd)}</span>
+        <span>Priority {project.priority}</span>
+        <span>
+          {tasks.filter(isClosed).length} / {tasks.length} closed
+        </span>
+      </div>
+
+      <details className="section">
+        <summary>Project description</summary>
+        <div className="two-col">
+          <div>
+            <h3 className="small muted" style={{ marginBottom: 4 }}>Context</h3>
+            <p style={{ whiteSpace: 'pre-wrap' }}>{project.context || <span className="muted">Not set.</span>}</p>
+          </div>
+          <div>
+            <h3 className="small muted" style={{ marginBottom: 4 }}>Client info</h3>
+            <p style={{ whiteSpace: 'pre-wrap' }}>{project.clientInfo || <span className="muted">Not set.</span>}</p>
+            <h3 className="small muted" style={{ marginBottom: 4 }}>Related documents</h3>
+            {documents.length === 0 && <p className="muted">None.</p>}
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {documents.map((line) => {
+                const idx = line.lastIndexOf('|');
+                const label = idx > -1 ? line.slice(0, idx).trim() : line;
+                const url = idx > -1 ? line.slice(idx + 1).trim() : line;
+                return (
+                  <li key={line}>
+                    <a href={url} target="_blank" rel="noreferrer">
+                      {label}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+        <p className="small" style={{ marginTop: 10 }}>
+          <Link href={`/projects/${id}/settings`}>Edit description, dates and team</Link>
+        </p>
+      </details>
+
+      <form method="get" className="filters">
+        <label className="field">
+          PIC
+          <select name="pic" defaultValue={sp.pic ?? ''}>
+            <option value="">All</option>
+            <option value="none">Unassigned</option>
+            {projectMembers.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          Environment
+          <select name="env" defaultValue={sp.env ?? ''}>
+            <option value="">All</option>
+            {envOptions.map((e) => (
+              <option key={e} value={e}>
+                {e}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          Status
+          <select name="status" defaultValue={sp.status ?? ''}>
+            <option value="">All</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit">Filter</button>
+        <Link href={`/projects/${id}`} className="small" style={{ alignSelf: 'center' }}>
+          Clear
+        </Link>
+        {canCreate && (
+          <Link href={`/projects/${id}/tasks/new`} className="pill" style={{ marginLeft: 'auto', padding: '7px 14px', fontSize: 13 }}>
+            + Add task
+          </Link>
+        )}
+      </form>
+
+      <div className="columns">
+        {STATUSES.map((status) => {
+          const col = filtered.filter((t) => t.status === status);
+          return (
+            <section key={status} className="column">
+              <h3>
+                <span>{STATUS_LABEL[status]}</span>
+                <span className="muted small">{col.length}</span>
+              </h3>
+              {col.map((t) => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  projectId={id}
+                  members={projectMembers}
+                  memberName={(picId) => (picId ? memberById.get(picId)?.name ?? '—' : 'Unassigned')}
+                  activeBlockers={t.blockedBy.map((b) => taskById.get(b)).filter((b): b is Task => !!b && !isClosed(b))}
+                  critical={schedule.plans.get(t.id)?.critical ?? false}
+                  actorCan={(action) => can(actor, action, { ...scope, task: t }).ok}
+                />
+              ))}
+            </section>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 && <p className="empty">No tasks match these filters.</p>}
+    </>
+  );
+}
+
+function TaskCard({
+  task,
+  projectId,
+  members,
+  memberName,
+  activeBlockers,
+  critical,
+  actorCan,
+}: {
+  task: Task;
+  projectId: string;
+  members: { id: string; name: string; role: string }[];
+  memberName: (picId: string | null) => string;
+  activeBlockers: Task[];
+  critical: boolean;
+  actorCan: (action: 'task.pic' | 'task.duration' | 'task.status') => boolean;
+}) {
+  const classes = ['task-card', task.blocked ? 'blocked' : '', critical ? 'critical' : ''].join(' ').trim();
+  const hidden = { projectId, taskId: task.id };
+  return (
+    <div className={classes}>
+      <div className="meta">
+        {task.environment} · {task.phase}
+      </div>
+      <Link href={`/projects/${projectId}/tasks/${task.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>
+        <span className="muted small">{task.code}</span> {task.name}
+      </Link>
+      {activeBlockers.length > 0 && (
+        <div className="meta">Waiting on {activeBlockers.map((b) => b.code).join(', ')}</div>
+      )}
+      <div className="meta">Deadline {formatDate(task.deadline)} · {task.duration}d {critical && <span className="pill amber">critical</span>}</div>
+      {task.blocked && <div className="meta error">Blocked: {task.blocker}</div>}
+      <div className="controls">
+        <AutoSelect
+          action={updateTask}
+          name="picId"
+          value={task.picId ?? ''}
+          options={[{ value: '', label: 'Unassigned' }, ...members.map((m) => ({ value: m.id, label: m.name }))]}
+          hidden={hidden}
+          disabled={!actorCan('task.pic')}
+          label={`PIC of ${task.code}`}
+        />
+        <AutoSelect
+          action={updateTask}
+          name="duration"
+          value={String(task.duration)}
+          options={DURATIONS.map((d) => ({ value: d, label: `${d} working days` }))}
+          hidden={hidden}
+          disabled={!actorCan('task.duration')}
+          label={`Duration of ${task.code}`}
+        />
+        <AutoSelect
+          action={updateTask}
+          name="status"
+          value={task.status}
+          options={STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s as Status] }))}
+          hidden={hidden}
+          disabled={!actorCan('task.status')}
+          label={`Status of ${task.code}`}
+        />
+      </div>
+      <div className="meta small" style={{ marginTop: 4 }}>{memberName(task.picId)}</div>
+    </div>
+  );
+}
