@@ -4,6 +4,7 @@ import { unreadCount } from '@/lib/repo';
 import { switchAccount } from '@/app/actions';
 import { can } from '@/lib/permissions';
 import { AutoSelect } from './AutoSelect';
+import { memberLabel } from '@/lib/types';
 
 export async function Header() {
   const { actor, members } = await currentAccount();
@@ -15,7 +16,7 @@ export async function Header() {
       <header className="topbar">
         <div>
           <Link href="/" className="brand">
-            Pulse · Early Warning System
+            Golden Hour
           </Link>
           <span className="brand-sub">Where each project is heading, and what to fix first</span>
         </div>
@@ -27,7 +28,7 @@ export async function Header() {
                 action={switchAccount}
                 name="memberId"
                 value={actor?.id ?? ''}
-                options={members.map((m) => ({ value: m.id, label: `${m.name} · ${m.role}` }))}
+                options={members.map((m) => ({ value: m.id, label: memberLabel(m) }))}
                 label="Signed in as"
               />
             </label>

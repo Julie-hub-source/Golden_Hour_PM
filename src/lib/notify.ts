@@ -2,6 +2,7 @@ import 'server-only';
 import { db } from './supabase';
 import { loadPortfolio, type PortfolioProject } from './repo';
 import { dueAlerts, alertMessage } from './alerts';
+import { dependencySchedule } from './schedule';
 import { formatDate, todayIso } from './calendar';
 import type { Task } from './types';
 
@@ -37,8 +38,10 @@ export async function runDueAlerts(today: string = todayIso()): Promise<{ sent: 
 
   for (const project of pf.projects) {
     const tasks = pf.tasksByProject.get(project.id) ?? [];
+    // Lateness comes from the schedule, so a task that has not started yet is never reported late
+    const plans = dependencySchedule(tasks, project.startDate, { today }).plans;
     for (const task of tasks) {
-      const due = dueAlerts(task, today);
+      const due = dueAlerts(task, today, plans.get(task.id));
       if (due.length === 0) continue;
 
       const picName = task.picId ? memberName.get(task.picId) ?? null : null;

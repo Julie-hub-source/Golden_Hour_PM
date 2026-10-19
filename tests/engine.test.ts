@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { workdayDate, workdaysAfter, parseDateInput, isWeekend, workdaysBetween, formatDate, todayIso } from '../src/lib/calendar';
-import { dependencySchedule, happyCase, simulateProd, canAddBlocker, downstreamIds, priorityList, whatIf, completeDate, sampleTriangular } from '../src/lib/schedule';
-import { dueAlerts } from '../src/lib/alerts';
+import { dependencySchedule, happyCase, simulateProd, canAddBlocker, downstreamIds, whatIf, completeDate, sampleTriangular, priorityOf, lateness } from '../src/lib/schedule';
+import { dueAlerts, alertMessage } from '../src/lib/alerts';
 import { buildDefaultFlow } from '../src/lib/project-setup';
 import { can } from '../src/lib/permissions';
 import type { Task } from '../src/lib/types';
@@ -24,7 +24,7 @@ function task(partial: Partial<Task> & { id: string }): Task {
     deadline: START,
     blockedBy: [],
     blocked: false,
-    blocker: '',
+    issues: [],
     description: '',
     sinceDate: START,
     alerts: [],
@@ -45,12 +45,16 @@ test('working-day calendar', () => {
 });
 
 test('date input parsing and formatting', () => {
-  assert.equal(parseDateInput('03/02/26'), '2026-02-03');
+  assert.equal(parseDateInput('3/2/2026'), '2026-02-03');
   assert.equal(parseDateInput('03/02/2026'), '2026-02-03');
+  assert.equal(parseDateInput('Tue 3/2/2026'), '2026-02-03');
   assert.equal(parseDateInput('2026-02-03'), '2026-02-03');
-  assert.equal(parseDateInput('31/02/26'), null);
+  assert.equal(parseDateInput('31/02/2026'), null, 'not a real day');
+  assert.equal(parseDateInput('03/02/26'), null, 'two-digit years are not accepted');
   assert.equal(parseDateInput('hello'), null);
-  assert.equal(formatDate('2026-02-03'), '03/02/26');
+  assert.equal(formatDate('2027-01-01'), 'Fri 1/1/2027', 'no zero padding, English weekday');
+  assert.equal(formatDate('2026-02-03'), 'Tue 3/2/2026');
+  assert.equal(parseDateInput(formatDate('2026-11-25')), '2026-11-25', 'displayed value parses back');
   assert.match(todayIso(), /^\d{4}-\d{2}-\d{2}$/);
 });
 
@@ -60,7 +64,7 @@ test('dependency schedule: chain, parallel and slack', () => {
     task({ id: 'b', duration: 2, blockedBy: ['a'] }),
     task({ id: 'c', duration: 1 }),
   ];
-  const s = dependencySchedule(tasks, START);
+  const s = dependencySchedule(tasks, START, { today: START });
   assert.equal(s.plans.get('a')!.start, '2026-01-05');
   assert.equal(s.plans.get('a')!.end, '2026-01-07');
   assert.equal(s.plans.get('b')!.start, '2026-01-08');
@@ -71,17 +75,17 @@ test('dependency schedule: chain, parallel and slack', () => {
   assert.equal(s.plans.get('c')!.critical, false);
 });
 
-test('closed tasks gate nothing, complete date counts them', () => {
+test('closed task does not delay its successor, but the successor starts after its planned finish', () => {
   const tasks = [
     task({ id: 'a', duration: 3, status: 'closed' }),
     task({ id: 'b', duration: 2, blockedBy: ['a'] }),
   ];
-  assert.equal(dependencySchedule(tasks, START).plans.get('b')!.start, START);
+  assert.equal(dependencySchedule(tasks, START, { today: START }).plans.get('b')!.start, '2026-01-08', 'a planned to finish Thu 8 Jan (3 working days)');
   assert.equal(completeDate(tasks, START), '2026-01-09');
 });
 
 test('zero-duration task uses its start date for both dates', () => {
-  const s = dependencySchedule([task({ id: 'z', duration: 0 })], START);
+  const s = dependencySchedule([task({ id: 'z', duration: 0 })], START, { today: START });
   assert.equal(s.plans.get('z')!.start, s.plans.get('z')!.end);
 });
 
@@ -98,14 +102,16 @@ test('happy case runs environments in order and skips STG when absent', () => {
   assert.equal(hc.prodCompletion, '2026-01-13');
 });
 
-test('happy case shows Done for environments with only closed tasks', () => {
+test('happy case: a finished environment keeps its planned dates, and the next one starts after them', () => {
   const tasks = [
     task({ id: 'u1', duration: 3, environment: 'UAT', status: 'closed' }),
     task({ id: 'p1', duration: 2, environment: 'Prod' }),
   ];
   const hc = happyCase(tasks, START);
   assert.equal(hc.envs[0].done, true);
-  assert.equal(hc.envs[1].start, START);
+  assert.equal(hc.envs[0].start, START, 'planned start of the closed UAT tasks');
+  assert.equal(hc.envs[0].completion, '2026-01-07', 'planned completion: 3 working days');
+  assert.equal(hc.envs[1].start, '2026-01-08');
 });
 
 test('simulation: late when commit is before the plan, on time when far away', () => {
@@ -155,20 +161,64 @@ test('downstream walks open successors only', () => {
   assert.deepEqual(downstreamIds('a', tasks).sort(), ['b', 'c']);
 });
 
-test('priority: blocked outranks critical and both use downstream count', () => {
+test('priority level follows the distance from today, and open struggles raise it', () => {
+  const today = '2026-01-07'; // Wednesday
+  const plan = (start: string, end: string) => ({
+    id: 'x', es: 0, ef: 1, ls: 0, lf: 1, slack: 0, critical: false, start, end, late: false, lateWd: 0,
+  });
+  const t = task({ id: 'x', deadline: '2026-02-27' });
+  const struggle = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ id: 's' + i, reason: 'r', createdBy: null, createdAt: '', solvedAt: null }));
+  assert.equal(priorityOf(t, plan('2026-01-06', '2026-01-08'), today).level, 'Highest'); // today is inside the window
+  assert.equal(priorityOf(t, plan('2026-01-08', '2026-01-09'), today).level, 'High'); // 1 working day away
+  assert.equal(priorityOf(t, plan('2026-01-12', '2026-01-13'), today).level, 'High'); // 3 working days away
+  assert.equal(priorityOf(t, plan('2026-01-13', '2026-01-14'), today).level, 'Medium'); // 4 working days away
+  assert.equal(priorityOf(t, plan('2026-01-19', '2026-01-20'), today).level, 'Low'); // 8 working days away
+  const busy = task({ id: 'y', deadline: '2026-02-27', issues: struggle(3) });
+  assert.equal(priorityOf(busy, plan('2026-01-19', '2026-01-20'), today).level, 'Medium'); // Low raised one level
+  assert.equal(priorityOf(task({ id: 'z', deadline: '2026-02-27', issues: struggle(2) }), plan('2026-01-19', '2026-01-20'), today).level, 'Low'); // two is not more than two
+});
+
+test('late tasks are always the top priority level, and open struggles do not change that', () => {
+  const today = '2026-01-12';
+  const late = task({ id: 'L', deadline: '2026-01-07', status: 'in_progress', issues: [] });
+  const p = priorityOf(late, undefined, today);
+  assert.equal(p.level, 'Late');
+  assert.equal(priorityOf({ ...late, issues: [{ id: 'i', reason: 'r', createdBy: null, createdAt: '', solvedAt: null }] }, undefined, today).level, 'Late');
+  assert.equal(priorityOf(task({ id: 'T', deadline: '2026-01-12', status: 'in_progress' }), undefined, today).level, 'Low', 'deadline today is not late');
+  assert.equal(priorityOf(task({ id: 'C', deadline: '2026-01-07', status: 'closed' }), undefined, today).level, 'Low', 'closed is never late');
+});
+
+test('late: deadline strictly before today, working days after the deadline', () => {
+  const today = '2026-01-12'; // Monday
+  assert.deepEqual(lateness(task({ id: 'a', deadline: '2026-01-12', status: 'in_progress' }), today), { late: false, lateWd: 0 });
+  assert.deepEqual(lateness(task({ id: 'b', deadline: '2026-01-07', status: 'in_progress' }), today), { late: true, lateWd: 3 });
+  assert.deepEqual(lateness(task({ id: 'c', deadline: '2026-01-07', status: 'closed' }), today), { late: false, lateWd: 0 });
+});
+
+test('a late predecessor pushes each successor by its late working days, once, and closed predecessors push nothing', () => {
+  const today = '2026-01-12';
+  // a: planned to end on its deadline Tue 6 Jan, 4 working days late today
   const tasks = [
-    task({ id: 'a', duration: 2 }),
-    task({ id: 'b', duration: 2, blockedBy: ['a'] }),
-    task({ id: 'x', duration: 2, blocked: true, blocker: 'waiting on vendor' }),
+    task({ id: 'a', duration: 2, deadline: '2026-01-06', status: 'in_progress' }),
+    task({ id: 'b', duration: 2, blockedBy: ['a'], deadline: '2026-02-27' }),
+    task({ id: 'c', duration: 2, blockedBy: ['b'], deadline: '2026-02-27' }),
   ];
-  const s = dependencySchedule(tasks, START);
-  const list = priorityList(tasks, s);
-  const x = list.find((i) => i.task.id === 'x')!;
-  assert.equal(x.risk, 3);
-  assert.equal(x.action, 'Clear blocker: waiting on vendor');
-  const a = list.find((i) => i.task.id === 'a')!;
-  assert.equal(a.downstream, 1);
-  assert.equal(a.score, (1 + 1) * 2 / 2);
+  const planned = dependencySchedule(tasks, START, { today: START });
+  const late = dependencySchedule(tasks, START, { today });
+  assert.equal(late.plans.get('a')!.late, true);
+  assert.equal(late.plans.get('a')!.lateWd, 4);
+  assert.equal(late.plans.get('a')!.end, '2026-01-12', 'projected end = deadline + late working days');
+  assert.equal(late.plans.get('b')!.start, '2026-01-13');
+  assert.equal(late.plans.get('b')!.es - planned.plans.get('b')!.es, 4, 'pushed by exactly 4');
+  assert.equal(late.plans.get('c')!.es - planned.plans.get('c')!.es, 4, 'the same 4 days, not added again');
+
+  // Closed predecessor gates nothing
+  const closedTasks = [
+    task({ id: 'a', duration: 2, deadline: '2026-01-06', status: 'closed' }),
+    task({ id: 'b', duration: 2, blockedBy: ['a'], deadline: '2026-02-27' }),
+  ];
+  assert.equal(dependencySchedule(closedTasks, START, { today }).plans.get('b')!.start, '2026-01-07');
 });
 
 test('what-if pushes downstream tasks and reports buffer', () => {
@@ -176,7 +226,7 @@ test('what-if pushes downstream tasks and reports buffer', () => {
     task({ id: 'a', duration: 2, environment: 'Prod' }),
     task({ id: 'b', duration: 2, environment: 'Prod', blockedBy: ['a'] }),
   ];
-  const r = whatIf(tasks, START, '2026-01-09', 'a', 3);
+  const r = whatIf(tasks, START, '2026-01-09', 'a', 3, START);
   assert.equal(r.shift, 3);
   assert.equal(r.pushed.length, 1);
   assert.equal(r.pushed[0].id, 'b');
@@ -199,20 +249,22 @@ test('permissions: PIC-scoped and PM/PO rules', () => {
   assert.equal(can(fe, 'project.setCommit', { projectMemberIds: new Set(['pm']) }).ok, false, 'non-member blocked');
 });
 
-test('alerts: overdue after more than 2 working days and to-do after 2 working days', () => {
+test('alerts: late once when the deadline has passed, not again until the deadline or status changes', () => {
   const today = '2026-01-12'; // Monday
-  const overdue = task({ id: 'o', deadline: '2026-01-07', status: 'in_progress' }); // Wed -> 3 wd past (Thu, Fri, Mon)
+  const overdue = task({ id: 'o', deadline: '2026-01-07', status: 'in_progress' });
   const due = dueAlerts(overdue, today);
   assert.deepEqual(due.map((d) => d.kind), ['late']);
   assert.equal(due[0].days, 3);
-  const notYet = task({ id: 'n', deadline: '2026-01-08', status: 'in_progress' }); // Thu -> 2 wd past
-  assert.equal(dueAlerts(notYet, today).length, 0);
+  const msg = alertMessage(due[0], overdue, 'Binh', formatDate);
+  assert.equal(msg, 'LATE: O "o" passed its deadline (Wed 7/1/2026) by 3 working day(s). PIC: Binh.');
+  assert.equal(dueAlerts({ ...overdue, alerts: ['late'] }, today).length, 0, 'already sent');
+  assert.equal(dueAlerts(task({ id: 'n', deadline: '2026-01-12', status: 'in_progress' }), today).length, 0, 'deadline is today');
   const todo = task({ id: 't', status: 'todo', sinceDate: '2026-01-05', deadline: '2026-02-27' });
   assert.deepEqual(dueAlerts(todo, today).map((d) => d.kind), ['todo']);
   assert.equal(dueAlerts({ ...todo, alerts: ['todo'] }, today).length, 0);
 });
 
-test('default flow: 32 tasks, sequential codes, correct commits', () => {
+test('default flow: 35 tasks, sequential codes, correct commits', () => {
   let n = 0;
   const members = [
     { id: 'm-ba', name: 'BA', role: 'BA' as const },
@@ -222,9 +274,9 @@ test('default flow: 32 tasks, sequential codes, correct commits', () => {
     { id: 'm-be', name: 'BE', role: 'BE' as const },
   ];
   const r = buildDefaultFlow({ startIso: START, today: START, members, newId: () => `id-${++n}` });
-  assert.equal(r.tasks.length, 32);
+  assert.equal(r.tasks.length, 35);
   assert.equal(r.tasks[0].code, 'T01');
-  assert.equal(r.tasks[31].code, 'T32');
+  assert.equal(r.tasks[34].code, 'T35');
   assert.deepEqual(r.tasks[2].blockedBy, ['id-1', 'id-2'], 'step 2 blocked by all of step 1');
   assert.equal(r.tasks[0].picId, 'm-ba');
   assert.equal(r.tasks.find((t) => t.name === 'Test UAT')!.picId, 'm-qc');
@@ -232,7 +284,42 @@ test('default flow: 32 tasks, sequential codes, correct commits', () => {
   assert.ok(r.commitUat && r.commitStg);
   assert.ok(r.commitUat! < r.commitStg!);
   // Deadlines equal planned finish; the last Prod task ends the project
-  const last = r.tasks[31];
+  const last = r.tasks[34];
   assert.ok(last.deadline >= r.tasks[0].deadline);
-  assert.equal(new Set(r.tasks.map((t) => t.code)).size, 32);
+  assert.equal(new Set(r.tasks.map((t) => t.code)).size, 35);
+});
+
+test('a late task runs up to today and no further, even if its planned duration is longer', () => {
+  const today = '2026-01-12'; // Monday
+  const tasks = [task({ id: 'a', duration: 10, deadline: '2026-01-06', status: 'in_progress' })];
+  const s = dependencySchedule(tasks, START, { today });
+  assert.equal(s.plans.get('a')!.late, true);
+  assert.equal(s.plans.get('a')!.end, '2026-01-12', 'bar ends today');
+});
+
+test('a successor that has not started yet is pushed back but is not late', () => {
+  const today = '2026-01-12';
+  const tasks = [
+    task({ id: 'a', duration: 2, deadline: '2026-01-06', status: 'in_progress' }),
+    task({ id: 'b', duration: 2, blockedBy: ['a'], deadline: '2026-01-07' }),
+  ];
+  const s = dependencySchedule(tasks, START, { today });
+  assert.equal(s.plans.get('a')!.late, true);
+  assert.equal(s.plans.get('b')!.start, '2026-01-13', 'starts after today');
+  assert.equal(s.plans.get('b')!.late, false, 'not started, so not late even though its deadline passed');
+});
+
+test('environment late days move that environment and every later one', () => {
+  const tasks = [
+    task({ id: 'u1', duration: 2, environment: 'UAT', sortOrder: 1 }),
+    task({ id: 'p1', duration: 2, environment: 'Prod', sortOrder: 2 }),
+  ];
+  const plain = happyCase(tasks, START);
+  const late = happyCase(tasks, START, undefined, new Map([['u1', 3]]));
+  const uat = late.envs.find((e) => e.env === 'UAT')!;
+  const prod = late.envs.find((e) => e.env === 'Prod')!;
+  assert.equal(uat.late, 3);
+  assert.equal(uat.completion, '2026-01-09', 'UAT completion moves 3 working days (Thu 8 -> Fri 9 after 2 + 3 days)');
+  assert.equal(prod.start, '2026-01-12', 'Prod starts after the moved UAT completion');
+  assert.equal(plain.envs.find((e) => e.env === 'Prod')!.start, '2026-01-07');
 });

@@ -2,23 +2,39 @@
  * Scheduling engine (CLAUDE.md sections 7, 8, 11).
  * Pure functions: no I/O, no dates from the system clock. Callers pass the project start and today.
  */
-import { workdayDate, workdaysBetween } from './calendar';
+import { isWeekend, todayIso, workdayDate, workdaysAfter, workdaysBetween, workIndex } from './calendar';
 import { ENVIRONMENTS, type Environment, type Task } from './types';
 
 export const isClosed = (t: Pick<Task, 'status'>) => t.status === 'closed';
 
+/**
+ * Late (section 2): an open task whose deadline is strictly before today.
+ * lateWd = working days after the deadline, up to and including today.
+ */
+export function lateness(
+  task: Pick<Task, 'status' | 'deadline'>,
+  today: string,
+  started = true,
+): { late: boolean; lateWd: number } {
+  // A task that has not started yet cannot be late. Its dates are moved by the tasks before it.
+  if (!started || isClosed(task) || task.deadline >= today) return { late: false, lateWd: 0 };
+  return { late: true, lateWd: workdaysAfter(task.deadline, today) };
+}
+
 export interface TaskPlan {
   id: string;
-  /** Dependency-schedule indices (working days from project start). */
+  /** Dependency-schedule indices (working days from project start). ef is the projected finish. */
   es: number;
   ef: number;
   ls: number;
   lf: number;
   slack: number;
   critical: boolean;
-  /** Calendar dates. For a zero-duration task both are the same day. */
+  /** Calendar dates. For a zero-duration task both are the same day. end is the projected end (inclusive). */
   start: string;
   end: string;
+  late: boolean;
+  lateWd: number;
 }
 
 export interface DependencySchedule {
@@ -36,6 +52,10 @@ interface Options {
   includeClosed?: boolean;
   /** Override durations, keyed by task id. */
   durations?: Map<string, number>;
+  /** Date used for lateness. Defaults to the real date in Asia/Ho_Chi_Minh. */
+  today?: string;
+  /** Plan with no late shifts (planned dates, e.g. the complete date or a new task's default deadline). */
+  ignoreLate?: boolean;
 }
 
 /** Topological order: blockers come before the tasks they gate. Ignores edges to tasks outside `ids`. */
@@ -77,14 +97,34 @@ export function dependencySchedule(tasks: Task[], startIso: string, opts: Option
     }
   }
 
+  // Late tasks (section 7.6): a task is late only once it has started (its start is today or earlier).
+  // A late task is still running, so its bar runs up to today and no further.
+  // Successors start after the projected finish of their predecessors, so the delay is added once.
+  const today = opts.today ?? todayIso();
+  const lastWorkday = isWeekend(today) ? workIndex(startIso, today) - 1 : workIndex(startIso, today);
+
+  // A Closed predecessor does not delay its successors, but an open successor still starts after the
+  // planned finish of its Closed predecessors. Without this, the successor would start at project day 0.
+  const closedFinish = new Map<string, number>();
+  if (!opts.includeClosed) {
+    const planned = dependencySchedule(tasks, startIso, { includeClosed: true, ignoreLate: true, durations: opts.durations });
+    for (const t of tasks) if (isClosed(t)) closedFinish.set(t.id, planned.plans.get(t.id)?.ef ?? 0);
+  }
+
   const es = new Map<string, number>();
   const ef = new Map<string, number>();
+  const lateOf = new Map<string, { late: boolean; lateWd: number }>();
   for (const id of order) {
     const t = byId.get(id)!;
     let start = 0;
-    for (const b of t.blockedBy) if (ids.has(b)) start = Math.max(start, ef.get(b) ?? 0);
+    for (const b of t.blockedBy) {
+      if (ids.has(b)) start = Math.max(start, ef.get(b) ?? 0);
+      else if (closedFinish.has(b)) start = Math.max(start, closedFinish.get(b)!);
+    }
     es.set(id, start);
-    ef.set(id, start + dur(id));
+    const l = opts.ignoreLate ? { late: false, lateWd: 0 } : lateness(t, today, start <= lastWorkday);
+    lateOf.set(id, l);
+    ef.set(id, l.late ? Math.max(start, lastWorkday + 1) : start + dur(id));
   }
 
   let finishIdx = 0;
@@ -107,6 +147,7 @@ export function dependencySchedule(tasks: Task[], startIso: string, opts: Option
     const start = workdayDate(startIso, es.get(id)!);
     const end = d === 0 ? start : workdayDate(startIso, ef.get(id)! - 1);
     const slack = lf.get(id)! - ef.get(id)!;
+    const l = lateOf.get(id)!;
     plans.set(id, {
       id,
       es: es.get(id)!,
@@ -117,6 +158,8 @@ export function dependencySchedule(tasks: Task[], startIso: string, opts: Option
       critical: slack <= 0,
       start,
       end,
+      late: l.late,
+      lateWd: l.lateWd,
     });
   }
 
@@ -126,7 +169,7 @@ export function dependencySchedule(tasks: Task[], startIso: string, opts: Option
 
 /** Complete date (7.3): start + longest chain of working days, all tasks at planned duration. */
 export function completeDate(tasks: Task[], startIso: string): string {
-  return dependencySchedule(tasks, startIso, { includeClosed: true }).finishDate;
+  return dependencySchedule(tasks, startIso, { includeClosed: true, ignoreLate: true }).finishDate;
 }
 
 /* ---------------- Happy-case schedule (7.2) ---------------- */
@@ -145,6 +188,8 @@ export interface EnvPlan {
   start: string | null;
   /** Date the environment completes (null when done). */
   completion: string | null;
+  /** Late working days of the open tasks in this environment. Added to completion and to later environments. */
+  late: number;
 }
 
 export interface HappyCase {
@@ -162,10 +207,18 @@ export const envsPresent = (tasks: Pick<Task, 'environment'>[]): Environment[] =
 /**
  * Environments run in order. Open tasks within an environment run one after another in flow
  * order (sortOrder). Each environment starts on the working day after the previous one finishes.
+ * `late` maps a late task to its late working days (section 7.6). Each environment's late days are
+ * added after its tasks, so its completion moves by that many days and so does every later environment.
  */
-export function happyCase(tasks: Task[], startIso: string, durations?: Map<string, number>): HappyCase {
+export function happyCase(
+  tasks: Task[],
+  startIso: string,
+  durations?: Map<string, number>,
+  late?: Map<string, number>,
+): HappyCase {
   const dur = (t: Task) => durations?.get(t.id) ?? t.duration;
   const sorted = [...tasks].sort((a, b) => a.sortOrder - b.sortOrder);
+  const plannedClosed = closedPlanMap(tasks, startIso);
   const envs: EnvPlan[] = [];
   const taskDates = new Map<string, { start: string; end: string }>();
   let cursor = 0;
@@ -175,7 +228,21 @@ export function happyCase(tasks: Task[], startIso: string, durations?: Map<strin
     const open = envTasks.filter((t) => !isClosed(t));
     const present = envTasks.length > 0;
     if (open.length === 0) {
-      envs.push({ env, present, done: true, startIdx: cursor, endIdx: cursor, start: null, completion: null });
+      // Finished environment: show the planned dates of its tasks, and later environments start after them
+      const dates = envTasks.map((t) => plannedClosed.get(t.id)).filter((d): d is { start: string; end: string } => !!d);
+      const start = dates.length ? dates.map((d) => d.start).reduce((a, b) => (a < b ? a : b)) : null;
+      const completion = dates.length ? dates.map((d) => d.end).reduce((a, b) => (a > b ? a : b)) : null;
+      if (completion) cursor = Math.max(cursor, workIndex(startIso, completion) + 1);
+      envs.push({
+        env,
+        present,
+        done: true,
+        startIdx: start ? workIndex(startIso, start) : cursor,
+        endIdx: cursor,
+        start,
+        completion,
+        late: 0,
+      });
       continue;
     }
 
@@ -190,6 +257,8 @@ export function happyCase(tasks: Task[], startIso: string, durations?: Map<strin
       });
       cursor = e;
     }
+    const lateDays = open.reduce((n, t) => n + (late?.get(t.id) ?? 0), 0);
+    cursor += lateDays;
     const completion = cursor > startIdx ? workdayDate(startIso, cursor - 1) : workdayDate(startIso, startIdx);
     envs.push({
       env,
@@ -199,6 +268,7 @@ export function happyCase(tasks: Task[], startIso: string, durations?: Map<strin
       endIdx: cursor,
       start: workdayDate(startIso, startIdx),
       completion,
+      late: lateDays,
     });
   }
 
@@ -306,7 +376,7 @@ export function healthColor(projectedProd: string | null, commitProd: string, la
 
 /**
  * Working-day buffer between a completion and a commit date.
- * Positive = days to spare, negative = late. Matches section 8 ("Buffer / late").
+ * Positive = days to spare, negative = late. Matches section 8 ("Buffer").
  */
 export function bufferDays(completion: string, commit: string): number {
   return workdaysBetween(completion, commit);
@@ -329,10 +399,10 @@ export function dependsOn(candidate: string, taskId: string, tasks: Pick<Task, '
   return false;
 }
 
-/** Reject a new blocker if it would create a cycle or is the task itself. */
+/** Reject a new dependency if it would create a loop or points at the task itself. */
 export function canAddBlocker(taskId: string, blockerId: string, tasks: Pick<Task, 'id' | 'blockedBy'>[]): string | null {
-  if (taskId === blockerId) return 'A task cannot be its own blocker.';
-  if (dependsOn(blockerId, taskId, tasks)) return 'That would create a cycle: the blocker already depends on this task.';
+  if (taskId === blockerId) return 'A task cannot depend on itself.';
+  if (dependsOn(blockerId, taskId, tasks)) return 'That would create a loop: that task already depends on this one.';
   return null;
 }
 
@@ -363,29 +433,88 @@ export function downstreamIds(taskId: string, tasks: Task[]): string[] {
 
 /* ---------------- Priority (11) ---------------- */
 
+export type PriorityLevel = 'Late' | 'Highest' | 'High' | 'Medium' | 'Low';
+const LEVELS: PriorityLevel[] = ['Late', 'Highest', 'High', 'Medium', 'Low'];
+
 export interface PriorityItem {
   task: Task;
+  level: PriorityLevel;
+  /** Short reason shown next to the level */
+  why: string;
   downstream: number;
-  risk: 1 | 2 | 3;
+  /** Risk factor: late 4, open struggle 3, critical path 2, otherwise 1 */
+  risk: 1 | 2 | 3 | 4;
   score: number;
   action: string;
 }
 
-export function priorityList(tasks: Task[], schedule: DependencySchedule, limit = 8): PriorityItem[] {
-  const open = tasks.filter((t) => !isClosed(t));
-  const items = open.map((task) => {
-    const downstream = downstreamIds(task.id, tasks).length;
-    const plan = schedule.plans.get(task.id);
-    const risk: 1 | 2 | 3 = task.blocked ? 3 : plan?.critical ? 2 : 1;
-    const score = ((downstream + 1) * risk) / Math.max(task.duration, 1);
-    const action = task.blocked
-      ? `Clear blocker: ${task.blocker}`
-      : risk === 2
-        ? 'Prioritise resources, do not let it slip'
-        : 'Monitor and be ready to help';
-    return { task, downstream, risk, score, action } as PriorityItem;
-  });
-  return items.sort((a, b) => b.score - a.score).slice(0, limit);
+/**
+ * Task priority from today's date (working days):
+ * - Late: the task is late (section 2). Always the top level.
+ * - Highest: today falls inside the planned window.
+ * - High: starts 1 to 3 working days from today.
+ * - Medium: starts 4 to 5 working days from today.
+ * - Low: starts more than 5 working days from today.
+ * A task with more than 2 open struggles moves up one level. Late stays Late.
+ */
+export function priorityOf(task: Task, plan: TaskPlan | undefined, today: string): { level: PriorityLevel; why: string } {
+  // Use the schedule's view when there is one, so Priority agrees with the Gantt
+  const l = plan ? { late: plan.late, lateWd: plan.lateWd } : lateness(task, today);
+  if (l.late) return { level: 'Late', why: `late by ${l.lateWd} working day${l.lateWd === 1 ? '' : 's'}` };
+
+  let level: PriorityLevel;
+  let why: string;
+  if (!plan) {
+    level = 'Low';
+    why = 'not scheduled';
+  } else if (plan.start <= today && plan.end >= today) {
+    level = 'Highest';
+    why = 'planned for today';
+  } else if (plan.start < today) {
+    level = 'Highest';
+    why = 'planned window has started';
+  } else {
+    const days = workdaysBetween(today, plan.start);
+    level = days <= 3 ? 'High' : days <= 5 ? 'Medium' : 'Low';
+    why = `starts in ${days} working day${days === 1 ? '' : 's'}`;
+  }
+
+  const open = task.issues.filter((i) => !i.solvedAt).length;
+  if (open > 2) {
+    level = LEVELS[Math.max(0, LEVELS.indexOf(level) - 1)];
+    why += `; ${open} open struggles, raised one level`;
+  }
+  return { level, why };
+}
+
+/**
+ * Open tasks, sorted by level, then by score (highest first), then by planned start.
+ * Score = (dependents + 1) × risk ÷ max(duration, 1). Risk: late 4, open struggle 3, critical path 2, otherwise 1.
+ */
+export function priorityList(tasks: Task[], schedule: DependencySchedule, today: string): PriorityItem[] {
+  const items = tasks
+    .filter((t) => !isClosed(t))
+    .map((task): PriorityItem => {
+      const plan = schedule.plans.get(task.id);
+      const { level, why } = priorityOf(task, plan, today);
+      const downstream = downstreamIds(task.id, tasks).length;
+      const hasOpenStruggle = task.issues.some((i) => !i.solvedAt);
+      const risk: 1 | 2 | 3 | 4 = plan?.late ? 4 : hasOpenStruggle ? 3 : plan?.critical ? 2 : 1;
+      const score = ((downstream + 1) * risk) / Math.max(task.duration, 1);
+      const openStruggle = task.issues.find((i) => !i.solvedAt);
+      const action = openStruggle
+        ? `Solve struggle: ${openStruggle.reason}`
+        : plan?.critical
+          ? 'Prioritise resources, do not let it slip'
+          : 'Monitor and be ready to help';
+      return { task, level, why, downstream, risk, score, action };
+    });
+  return items.sort(
+    (a, b) =>
+      LEVELS.indexOf(a.level) - LEVELS.indexOf(b.level) ||
+      b.score - a.score ||
+      (schedule.plans.get(a.task.id)?.start ?? '').localeCompare(schedule.plans.get(b.task.id)?.start ?? ''),
+  );
 }
 
 /* ---------------- What-if (10.4) ---------------- */
@@ -406,12 +535,13 @@ export function whatIf(
   commitProd: string,
   taskId: string,
   extraDays: number,
+  today?: string,
 ): WhatIfResult {
-  const base = dependencySchedule(tasks, startIso);
+  const base = dependencySchedule(tasks, startIso, { today });
   const durations = new Map<string, number>();
   const target = tasks.find((t) => t.id === taskId);
   if (target && !isClosed(target)) durations.set(taskId, target.duration + extraDays);
-  const next = dependencySchedule(tasks, startIso, { durations });
+  const next = dependencySchedule(tasks, startIso, { durations, today });
 
   const pushed: WhatIfResult['pushed'] = [];
   for (const [id, plan] of next.plans) {
@@ -425,7 +555,7 @@ export function whatIf(
   pushed.sort((a, b) => b.days - a.days);
 
   // Happy-case Prod completion with the new duration, for the buffer comparison
-  const hc = happyCase(tasks, startIso, durations);
+  const hc = happyCase(tasks, startIso, durations, lateMap(base));
   const buffer = hc.prodCompletion ? bufferDays(hc.prodCompletion, commitProd) : null;
 
   return {
@@ -438,3 +568,25 @@ export function whatIf(
   };
 }
 
+
+/** Late working days per late task, for happyCase (section 6). */
+export function lateMap(schedule: DependencySchedule): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [id, p] of schedule.plans) if (p.late) out.set(id, p.lateWd);
+  return out;
+}
+
+/**
+ * Planned dates of Closed tasks, for the timeline (no late shifts). Closed tasks are not part of the
+ * live schedule, so their dates come from a planned pass over every task.
+ */
+export function closedPlanMap(tasks: Task[], startIso: string): Map<string, { start: string; end: string }> {
+  const planned = dependencySchedule(tasks, startIso, { includeClosed: true, ignoreLate: true });
+  const out = new Map<string, { start: string; end: string }>();
+  for (const t of tasks) {
+    if (!isClosed(t)) continue;
+    const p = planned.plans.get(t.id);
+    if (p) out.set(t.id, { start: p.start, end: p.end });
+  }
+  return out;
+}

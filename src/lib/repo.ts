@@ -1,8 +1,8 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { db } from './supabase';
-import { simulateProd, type SimResult, happyCase, healthColor, type HealthColor, completeDate, bufferDays, isClosed } from './schedule';
-import type { Member, Project, ProjectData, Task, TaskOutput, Role, Environment, Status, Priority, OutputType } from './types';
+import { simulateProd, type SimResult, happyCase, healthColor, type HealthColor, completeDate, bufferDays, isClosed, dependencySchedule, lateMap } from './schedule';
+import type { Member, Project, ProjectData, Task, TaskIssue, TaskOutput, Role, Environment, Status, Priority, OutputType } from './types';
 
 /* ---------------- Row types (snake_case from Postgres) ---------------- */
 
@@ -13,9 +13,10 @@ interface ProjectRow {
 }
 interface TaskRow {
   id: string; project_id: string; code: string; name: string; phase: string; environment: Environment;
-  role: Role | null; pic_id: string | null; status: Status; duration: number; deadline: string; blocked: boolean;
-  blocker: string; description: string; since_date: string; alerts: string[]; blocked_by: string[]; sort_order: number;
+  role: Role | null; pic_id: string | null; status: Status; duration: number; deadline: string;
+  description: string; since_date: string; alerts: string[]; blocked_by: string[]; sort_order: number;
 }
+interface IssueRow { id: string; task_id: string; reason: string; created_by: string | null; created_at: string; solved_at: string | null }
 interface OutputRow { id: string; task_id: string; type: OutputType; url: string; added_by: string | null; added_at: string }
 
 export const mapMember = (r: MemberRow): Member => ({ id: r.id, name: r.name, role: r.role });
@@ -34,7 +35,15 @@ export const mapProject = (r: ProjectRow): Project => ({
   taskSeq: r.task_seq,
 });
 
-const mapTask = (r: TaskRow, outputs: TaskOutput[]): Task => ({
+const mapIssue = (r: IssueRow): TaskIssue => ({ id: r.id, reason: r.reason, createdBy: r.created_by, createdAt: r.created_at, solvedAt: r.solved_at });
+
+function groupIssues(rows: IssueRow[]): Map<string, TaskIssue[]> {
+  const map = new Map<string, TaskIssue[]>();
+  for (const r of rows) map.set(r.task_id, [...(map.get(r.task_id) ?? []), mapIssue(r)]);
+  return map;
+}
+
+const mapTask = (r: TaskRow, outputs: TaskOutput[], issues: TaskIssue[]): Task => ({
   id: r.id,
   projectId: r.project_id,
   code: r.code,
@@ -47,8 +56,9 @@ const mapTask = (r: TaskRow, outputs: TaskOutput[]): Task => ({
   duration: r.duration,
   deadline: r.deadline,
   blockedBy: r.blocked_by ?? [],
-  blocked: r.blocked,
-  blocker: r.blocker,
+  // A task is blocked while it has at least one unsolved struggle
+  blocked: issues.some((i) => !i.solvedAt),
+  issues,
   description: r.description,
   sinceDate: r.since_date,
   alerts: r.alerts ?? [],
@@ -59,7 +69,7 @@ const mapTask = (r: TaskRow, outputs: TaskOutput[]): Task => ({
 const mapOutput = (r: OutputRow): TaskOutput => ({ id: r.id, type: r.type, url: r.url, addedBy: r.added_by, addedAt: r.added_at });
 
 const TASK_COLUMNS =
-  'id, project_id, code, name, phase, environment, role, pic_id, status, duration, deadline, blocked, blocker, description, since_date, alerts, blocked_by, sort_order';
+  'id, project_id, code, name, phase, environment, role, pic_id, status, duration, deadline, description, since_date, alerts, blocked_by, sort_order';
 
 function must<T>(res: { data: T | null; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
@@ -105,7 +115,11 @@ export async function loadProjectData(projectId: string): Promise<PortfolioProje
     list.push(mapOutput(o));
     outputsByTask.set(o.task_id, list);
   }
-  const tasks = taskRows.map((t) => mapTask(t, outputsByTask.get(t.id) ?? []));
+  const issueRows = taskIds.length
+    ? must<IssueRow[]>(await db().from('task_issues').select('*').in('task_id', taskIds).order('created_at'))
+    : [];
+  const issuesByTask = groupIssues(issueRows);
+  const tasks = taskRows.map((t) => mapTask(t, outputsByTask.get(t.id) ?? [], issuesByTask.get(t.id) ?? []));
 
   return { project, members, tasks, memberIds };
 }
@@ -136,10 +150,11 @@ export async function loadPortfolio(): Promise<Portfolio> {
     ...mapProject(r),
     memberIds: memberIdsByProject.get(r.id) ?? [],
   }));
+  const issuesByTask = groupIssues(must<IssueRow[]>(await db().from('task_issues').select('*').order('created_at')));
   const tasksByProject = new Map<string, Task[]>();
   for (const r of must<TaskRow[]>(taskRows)) {
     const list = tasksByProject.get(r.project_id) ?? [];
-    list.push(mapTask(r, []));
+    list.push(mapTask(r, [], issuesByTask.get(r.id) ?? []));
     tasksByProject.set(r.project_id, list);
   }
   return { members, projects, tasksByProject };
@@ -175,7 +190,7 @@ function simInputHash(data: PortfolioProject): string {
 
 export async function getHealth(data: PortfolioProject): Promise<Health> {
   const { project, tasks } = data;
-  const happy = happyCase(tasks, project.startDate);
+  const happy = happyCase(tasks, project.startDate, undefined, lateMap(dependencySchedule(tasks, project.startDate)));
   const hash = simInputHash(data);
 
   let sim: SimResult | null = null;

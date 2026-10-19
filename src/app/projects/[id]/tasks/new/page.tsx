@@ -8,6 +8,8 @@ import { formatDate } from '@/lib/calendar';
 import { ENVIRONMENTS, ROLES } from '@/lib/types';
 import { ProjectNav } from '@/components/ProjectNav';
 import { ActionForm } from '@/components/ActionForm';
+import { memberLabel } from '@/lib/types';
+import { DateField } from '@/components/DateField';
 import { createTask } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
@@ -79,7 +81,7 @@ export default async function NewTaskPage({ params }: { params: Promise<{ id: st
                   <option value="">Unassigned</option>
                   {projectMembers.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.name} ({m.role})
+                      {memberLabel(m)}
                     </option>
                   ))}
                 </select>
@@ -95,8 +97,8 @@ export default async function NewTaskPage({ params }: { params: Promise<{ id: st
                 </select>
               </label>
               <label className="field">
-                Deadline (optional, dd/mm/yy; blank = planned finish)
-                <input type="text" name="deadline" placeholder="dd/mm/yy" />
+                Deadline (optional; blank = planned finish)
+                <DateField name="deadline" />
               </label>
             </div>
             <label className="field">
@@ -104,7 +106,7 @@ export default async function NewTaskPage({ params }: { params: Promise<{ id: st
               <textarea name="description" />
             </label>
             <fieldset style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12, margin: '0 0 10px' }}>
-              <legend className="small muted">Blocked by</legend>
+              <legend className="small muted">Depends on (these must finish first)</legend>
               {openTasks.length === 0 && <p className="small muted">No open tasks to depend on.</p>}
               {openTasks.map((t) => (
                 <label key={t.id} className="check small">

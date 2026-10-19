@@ -47,7 +47,7 @@ export function buildDefaultFlow(opts: {
         deadline: opts.startIso, // set below from the schedule
         blockedBy: [...previousStep],
         blocked: false,
-        blocker: '',
+        issues: [],
         description: '',
         sinceDate: opts.today,
         alerts: [],
@@ -60,7 +60,7 @@ export function buildDefaultFlow(opts: {
   }
 
   // Deadlines = planned finish of each task
-  const plan = dependencySchedule(tasks, opts.startIso);
+  const plan = dependencySchedule(tasks, opts.startIso, { ignoreLate: true });
   for (const t of tasks) t.deadline = plan.plans.get(t.id)?.end ?? opts.startIso;
 
   // Default commits from the happy case of the flow (Prod uses the entered date)

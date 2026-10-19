@@ -1,4 +1,4 @@
--- Pulse database schema. Run once in Supabase: SQL Editor -> New query -> paste -> Run.
+-- Golden Hour database schema. Run once in Supabase: SQL Editor -> New query -> paste -> Run.
 -- The app talks to Postgres only from the server (service role key), so RLS is left
 -- disabled. Permissions are enforced in src/lib/permissions.ts. When real auth is added,
 -- turn RLS on and bind policies to the signed-in member.
@@ -43,17 +43,25 @@ create table if not exists tasks (
   status      text not null default 'todo' check (status in ('todo','in_progress','uat','stg','prod','closed')),
   duration    integer not null default 0 check (duration between 0 and 20),
   deadline    date not null,
-  blocked     boolean not null default false,
-  blocker     text not null default '',
   description text not null default '',
   since_date  date not null default current_date,  -- date of last status change
   alerts      text[] not null default '{}',        -- subset of {late, todo}
   blocked_by  uuid[] not null default '{}',        -- task ids that must finish first (cycles checked in app)
   sort_order  integer not null default 0,
   created_at  timestamptz not null default now(),
-  unique (project_id, code),
-  constraint blocked_needs_reason check (blocked = false or length(trim(blocker)) > 0)
+  unique (project_id, code)
 );
+
+-- Struggles on a task (shown as flames). A task can have many. solved_at is set when it is solved.
+create table if not exists task_issues (
+  id          uuid primary key default gen_random_uuid(),
+  task_id     uuid not null references tasks(id) on delete cascade,
+  reason      text not null check (length(trim(reason)) > 0),
+  created_by  uuid references members(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  solved_at   timestamptz
+);
+create index if not exists task_issues_task_idx on task_issues(task_id);
 
 create table if not exists task_outputs (
   id          uuid primary key default gen_random_uuid(),
@@ -95,12 +103,12 @@ create table if not exists sim_cache (
 -- Seed the member list (edit to match your team). Each member is also a login account.
 insert into members (name, role)
 select v.name, v.role from (values
-  ('Alex PM', 'PM'),
-  ('Bao PO', 'PO'),
-  ('Chi BA', 'BA'),
-  ('Dung Designer', 'Designer'),
-  ('Em FE', 'FE'),
-  ('Phong BE', 'BE'),
-  ('Giang QC', 'QC')
+  ('Alex', 'PM'),
+  ('Ben', 'PO'),
+  ('Chloe', 'BA'),
+  ('Daniel', 'Designer'),
+  ('Emma', 'FE'),
+  ('Frank', 'BE'),
+  ('Grace', 'QC')
 ) as v(name, role)
 where not exists (select 1 from members);

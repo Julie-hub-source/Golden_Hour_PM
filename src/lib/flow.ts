@@ -40,6 +40,7 @@ export const DEFAULT_FLOW: FlowStep[] = [
     tasks: [
       { name: 'Test UAT', role: 'QC', duration: 2 },
       { name: 'Debug UAT', role: 'BE', duration: 2 },
+      { name: 'Debug front-end UAT', role: 'FE', duration: 2 },
     ],
   },
   {
@@ -78,6 +79,7 @@ export const DEFAULT_FLOW: FlowStep[] = [
     tasks: [
       { name: 'Test STG', role: 'QC', duration: 2 },
       { name: 'Debug STG', role: 'BE', duration: 2 },
+      { name: 'Debug front-end STG', role: 'FE', duration: 2 },
     ],
   },
   {
@@ -116,6 +118,7 @@ export const DEFAULT_FLOW: FlowStep[] = [
     tasks: [
       { name: 'Test Prod', role: 'QC', duration: 2 },
       { name: 'Debug Prod', role: 'BE', duration: 2 },
+      { name: 'Debug front-end Prod', role: 'FE', duration: 2 },
     ],
   },
   {

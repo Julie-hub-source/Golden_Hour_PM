@@ -68,7 +68,7 @@ async function logChange(taskId: string, projectId: string, memberId: string, ac
 
 function parseDateOrFail(value: string, label: string): string {
   const iso = parseDateInput(value);
-  if (!iso) throw new UserError(`${label} must be a real date in dd/mm/yy format.`);
+  if (!iso) throw new UserError(`${label} must be a real date in D/M/YYYY format.`);
   return iso;
 }
 
@@ -170,8 +170,6 @@ export async function createProject(fd: FormData): Promise<ActionResult> {
         status: t.status,
         duration: t.duration,
         deadline: t.deadline,
-        blocked: false,
-        blocker: '',
         description: '',
         since_date: t.sinceDate,
         alerts: [],
@@ -349,7 +347,7 @@ export async function createTask(fd: FormData): Promise<ActionResult> {
     const duration = parseDuration(str(fd, 'duration') || '0');
     const blockedBy = strs(fd, 'blockedBy');
     const taskIds = new Set(data.tasks.map((t) => t.id));
-    if (blockedBy.some((b) => !taskIds.has(b))) throw new UserError('A blocker is not a task in this project.');
+    if (blockedBy.some((b) => !taskIds.has(b))) throw new UserError('A dependency is not a task in this project.');
 
     const newId = randomUUID();
     const deadlineInput = str(fd, 'deadline');
@@ -359,7 +357,8 @@ export async function createTask(fd: FormData): Promise<ActionResult> {
         ...data.tasks,
         { ...blankTask(newId, projectId), name, environment, duration, blockedBy },
       ];
-      const plan = dependencySchedule(withNew, data.project.startDate);
+      // Planned finish for the default deadline: no late shifts, the task is new
+      const plan = dependencySchedule(withNew, data.project.startDate, { ignoreLate: true });
       deadline = plan.plans.get(newId)?.end ?? data.project.startDate;
     }
 
@@ -382,8 +381,6 @@ export async function createTask(fd: FormData): Promise<ActionResult> {
       status: 'todo',
       duration,
       deadline,
-      blocked: false,
-      blocker: '',
       description: str(fd, 'description'),
       since_date: today,
       alerts: [],
@@ -413,7 +410,7 @@ function blankTask(id: string, projectId: string): Task {
     deadline: '',
     blockedBy: [],
     blocked: false,
-    blocker: '',
+    issues: [],
     description: '',
     sinceDate: '',
     alerts: [],
@@ -501,7 +498,9 @@ export async function updateTask(fd: FormData): Promise<ActionResult> {
         authorize(actor, FIELD_ACTION.status, scope);
         patch.status = status;
         patch.since_date = todayIso();
-        patch.alerts = [];
+        // The To-do alert resets on any status change. The late alert resets only when the task is reopened.
+        const reopened = task.status === 'closed' && status !== 'closed';
+        patch.alerts = reopened ? [] : task.alerts.filter((a) => a !== 'todo');
         changes.push({ field: 'status', text: `${who} changed the status of ${task.code} to ${STATUS_LABEL[status]}.` });
       }
     }
@@ -516,23 +515,7 @@ export async function updateTask(fd: FormData): Promise<ActionResult> {
       }
     }
 
-    // Blocked flag and reason
-    if (has(fd, 'blocked')) {
-      const blocked = str(fd, 'blocked') === 'true';
-      const blocker = str(fd, 'blocker');
-      if (blocked && !blocker) throw new UserError('Give a reason when marking a task as blocked.');
-      if (blocked !== task.blocked || (blocked && blocker !== task.blocker)) {
-        authorize(actor, FIELD_ACTION.block, scope);
-        patch.blocked = blocked;
-        patch.blocker = blocked ? blocker : task.blocker;
-        changes.push({
-          field: 'block',
-          text: blocked ? `${who} flagged ${task.code} as blocked: ${blocker}.` : `${who} cleared the blocked flag on ${task.code}.`,
-        });
-      }
-    }
-
-    // Blocked by: cycle check against the graph with this task's new list
+    // Depends on: cycle check against the graph with this task's new list
     if (has(fd, 'blockedBy')) {
       const next = [...new Set(strs(fd, 'blockedBy'))];
       const prev = [...task.blockedBy].sort().join(',');
@@ -541,12 +524,12 @@ export async function updateTask(fd: FormData): Promise<ActionResult> {
         const ids = new Set(data.tasks.map((t) => t.id));
         const graph = data.tasks.map((t) => (t.id === task.id ? { ...t, blockedBy: next } : t));
         for (const b of next) {
-          if (!ids.has(b)) throw new UserError('A blocker is not a task in this project.');
+          if (!ids.has(b)) throw new UserError('A dependency is not a task in this project.');
           const err = canAddBlocker(task.id, b, graph);
           if (err) throw new UserError(err);
         }
         patch.blocked_by = next;
-        changes.push({ field: 'blockedBy', text: `${who} changed the blocked-by list of ${task.code}.` });
+        changes.push({ field: 'blockedBy', text: `${who} changed what ${task.code} depends on.` });
       }
     }
 
@@ -568,6 +551,52 @@ export async function updateTask(fd: FormData): Promise<ActionResult> {
   });
 }
 
+/* ---------------- Struggles (shown as flames) ---------------- */
+
+/** Adds a struggle to a task. Each one is a flame until it is solved. PIC, PM and PO can add one. */
+export async function addTaskIssue(fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    const { actor } = await currentAccount();
+    const projectId = str(fd, 'projectId');
+    const data = await loadOrFail(projectId);
+    const task = taskOrFail(data, str(fd, 'taskId'));
+    authorize(actor, FIELD_ACTION.block, scopeOf(data, task));
+    const reason = str(fd, 'reason');
+    if (!reason) throw new UserError('Describe the struggle before adding it.');
+
+    const res = await db().from('task_issues').insert({ task_id: task.id, reason, created_by: actor!.id });
+    if (res.error) throw new Error(res.error.message);
+    const text = `${actor!.name} flagged a struggle on ${task.code} "${task.name}": ${reason}`;
+    await notify(pmPoAndPic(data, task), text, projectId, actor!.id);
+    await logChange(task.id, projectId, actor!.id, text);
+    return { ok: true };
+  });
+}
+
+/** Marks a struggle as solved, or reopens it. A solved flame is shown with a strike-through. */
+export async function setTaskIssueSolved(fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    const { actor } = await currentAccount();
+    const projectId = str(fd, 'projectId');
+    const data = await loadOrFail(projectId);
+    const task = taskOrFail(data, str(fd, 'taskId'));
+    authorize(actor, FIELD_ACTION.block, scopeOf(data, task));
+    const issue = task.issues.find((i) => i.id === str(fd, 'issueId'));
+    if (!issue) throw new UserError('Struggle not found on this task.');
+
+    const solve = str(fd, 'solved') !== 'false';
+    if (solve === !!issue.solvedAt) return { ok: true };
+    const res = await db().from('task_issues').update({ solved_at: solve ? new Date().toISOString() : null }).eq('id', issue.id);
+    if (res.error) throw new Error(res.error.message);
+    const text = solve
+      ? `${actor!.name} solved a struggle on ${task.code} "${task.name}": ${issue.reason}`
+      : `${actor!.name} reopened a struggle on ${task.code} "${task.name}": ${issue.reason}`;
+    await notify(pmPoAndPic(data, task), text, projectId, actor!.id);
+    await logChange(task.id, projectId, actor!.id, text);
+    return { ok: true };
+  });
+}
+
 export async function deleteTask(fd: FormData): Promise<ActionResult> {
   return run(async () => {
     const { actor } = await currentAccount();
@@ -576,7 +605,7 @@ export async function deleteTask(fd: FormData): Promise<ActionResult> {
     const task = taskOrFail(data, str(fd, 'taskId'));
     authorize(actor, 'task.delete', scopeOf(data, task));
 
-    // Remove this task from other tasks' blocked-by lists first
+    // Remove this task from other tasks' depends-on lists first
     await Promise.all(
       data.tasks
         .filter((t) => t.blockedBy.includes(task.id))

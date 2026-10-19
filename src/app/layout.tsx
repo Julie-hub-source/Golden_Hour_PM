@@ -6,7 +6,7 @@ import { Header } from '@/components/Header';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Pulse',
+  title: 'Golden Hour',
   description: 'Early warning for project delivery: where each project is heading and what to fix first.',
 };
 

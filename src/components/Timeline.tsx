@@ -1,13 +1,13 @@
-import Link from 'next/link';
-import { addDays, diffDays, formatDate, formatDayMonth, isWeekend, weekdayShort } from '@/lib/calendar';
+import { addDays, diffDays, formatDate, isWeekend, todayIso } from '@/lib/calendar';
 import { isClosed, type DependencySchedule } from '@/lib/schedule';
-import { ROLE_ORDER, ROLES, STATUS_LABEL, type Member, type Task } from '@/lib/types';
+import { ROLE_ORDER, STATUS_LABEL, memberLabel, type Member, type Task } from '@/lib/types';
+import { SegLink } from './SegLink';
+import { COLORS } from '@/lib/palette';
+import { taskLink } from '@/lib/links';
 
 /** Day width in px, as in the prototype. */
 const DW = 26;
 
-/** Same palette as the prototype, assigned by team order so each person keeps one colour. */
-const COLORS = ['#3b6cf6', '#2fa36b', '#f5a524', '#e5484d', '#8b5cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#84cc16', '#6366f1'];
 
 interface Item {
   task: Task;
@@ -31,21 +31,33 @@ function packRows(items: Item[]): Item[][] {
 }
 
 export function Timeline({
-  projectId,
+  baseHref,
   tasks,
   members,
   schedule,
+  closedPlans,
   commitProd,
 }: {
-  projectId: string;
+  /** Page the task popup opens on, e.g. /projects/x/dashboard?tab=timeline */
+  baseHref: string;
   tasks: Task[];
   members: Member[];
   schedule: DependencySchedule;
+  /** Planned dates of Closed tasks (no late shifts), so the whole project shows from start to end. */
+  closedPlans: Map<string, { start: string; end: string }>;
   commitProd: string;
 }) {
+  // Open tasks use the live schedule; Closed tasks show their planned dates, greyed out
   const open = tasks.filter((t) => !isClosed(t) && schedule.plans.has(t.id));
-  if (open.length === 0) return <div className="card"><p className="muted">All tasks are Closed.</p></div>;
+  const done = tasks.filter((t) => isClosed(t) && closedPlans.has(t.id));
+  const shown = [...open, ...done];
+  if (shown.length === 0) return <div className="card"><p className="muted">No tasks yet.</p></div>;
+  const planOf = (t: Task) =>
+    isClosed(t)
+      ? { start: closedPlans.get(t.id)!.start, end: closedPlans.get(t.id)!.end, critical: false, late: false, lateWd: 0 }
+      : schedule.plans.get(t.id)!;
 
+  const today = todayIso();
   const memberIndex = new Map(members.map((m, i) => [m.id, i]));
   const memberById = new Map(members.map((m) => [m.id, m]));
   const roleRank = (role: string) => {
@@ -59,7 +71,7 @@ export function Timeline({
 
   // One lane per person, ordered by role; unassigned last
   const byPerson = new Map<string, Task[]>();
-  for (const t of open) {
+  for (const t of shown) {
     const key = t.picId ?? 'unassigned';
     byPerson.set(key, [...(byPerson.get(key) ?? []), t]);
   }
@@ -70,11 +82,12 @@ export function Timeline({
     return roleRank(ma?.role ?? '') - roleRank(mb?.role ?? '') || (ma?.name ?? '').localeCompare(mb?.name ?? '');
   });
 
-  // Visible range: Monday of the first start to a week after the last end
-  const starts = open.map((t) => schedule.plans.get(t.id)!.start);
-  const ends = open.map((t) => schedule.plans.get(t.id)!.end);
-  const first = starts.reduce((a, b) => (a < b ? a : b));
-  const last = ends.reduce((a, b) => (a > b ? a : b));
+  // Range: Monday of the earliest date (including today) to a week after the latest date.
+  // The width follows the schedule, so a short plan gives a short timeline.
+  const starts = shown.map((t) => planOf(t).start);
+  const ends = shown.map((t) => planOf(t).end);
+  const first = [...starts, today].reduce((a, b) => (a < b ? a : b));
+  const last = [...ends, today, commitProd].reduce((a, b) => (a > b ? a : b));
   const offsetToMonday = (new Date(first + 'T00:00:00Z').getUTCDay() + 6) % 7;
   const rangeStart = addDays(first, -offsetToMonday);
   const rangeEnd = addDays(last, 7);
@@ -95,7 +108,7 @@ export function Timeline({
         {legendPeople.map((m) => (
           <span key={m.id} className="chip">
             <i style={{ background: colourOf(m.id) }} />
-            {m.name} · {m.role}
+            {memberLabel(m)}
           </span>
         ))}
         <span className="chip">
@@ -107,12 +120,16 @@ export function Timeline({
           Critical path
         </span>
         <span className="chip">
-          <i style={{ background: '#fff', boxShadow: '0 0 0 2px var(--red)' }} />
-          Blocked
+          <span className="flame">🔥</span>
+          Struggle (crossed out when solved)
         </span>
         <span className="chip">
           <span style={{ width: 2, height: 12, borderLeft: '2px dashed var(--red)', display: 'inline-block' }} />
           Prod commit {formatDate(commitProd)}
+        </span>
+        <span className="chip">
+          <span style={{ width: 2, height: 12, background: 'var(--blue)', display: 'inline-block' }} />
+          Today {formatDate(today)}
         </span>
       </div>
 
@@ -123,16 +140,19 @@ export function Timeline({
             <div className="ticks" style={{ width }}>
               {mondays.map((d) => (
                 <span key={d} style={{ left: x(d) }}>
-                  {formatDayMonth(d)}
+                  {formatDate(d)}
                 </span>
               ))}
+              <span className="today-label" style={{ left: x(today) + DW / 2 }}>
+                Today
+              </span>
             </div>
           </div>
 
           {keys.map((key) => {
             const m = memberById.get(key) ?? null;
             const items: Item[] = byPerson.get(key)!.map((t) => {
-              const p = schedule.plans.get(t.id)!;
+              const p = planOf(t);
               return { task: t, start: p.start, end: p.end };
             });
             const rows = packRows(items);
@@ -142,8 +162,8 @@ export function Timeline({
                 <div className="llabel">
                   {m ? (
                     <>
-                      <span style={{ color: colour, fontWeight: 600 }}>{m.name}</span>
-                      <div className="muted small">{m.role}</div>
+                      <span style={{ color: colour, fontWeight: 600 }}>{memberLabel(m)}</span>
+                      
                     </>
                   ) : (
                     <span className="muted">Unassigned</span>
@@ -154,35 +174,69 @@ export function Timeline({
                     <div key={d} className="wkend" style={{ left: x(d), width: DW }} />
                   ))}
                   <div className="cline" style={{ left: x(commitProd) }} title={`Prod commit ${formatDate(commitProd)}`} />
+                  <div className="today-line" style={{ left: x(today) + DW / 2 }} />
                   {rows.map((row, r) => (
                     <div key={r} className="lrow">
                       {row.map(({ task, start, end }) => {
-                        const p = schedule.plans.get(task.id)!;
+                        const p = planOf(task);
+                        const finished = isClosed(task);
                         const w = Math.max(DW, (diffDays(start, end) + 1) * DW) - 2;
-                        const flip = x(start) > width * 0.6;
+                        // Split the bar at the deadline: person's colour up to it, red stripes after it
+                        const dl = task.deadline;
+                        // A task that has not started yet has no stripes: it is not late, and its colour stays normal
+                        // Finished tasks are plain grey, with no stripes
+                        const started = start <= today;
+                        const colourEnd = !started ? end : dl < end ? dl : end;
+                        const colourDays = started && dl < start ? 0 : diffDays(start, colourEnd) + 1;
+                        const stripeFrom = started && dl >= start ? addDays(dl, 1) : start;
+                        const stripeDays = !finished && started && end >= stripeFrom ? diffDays(stripeFrom, end) + 1 : 0;
+                        const colourW = stripeDays === 0 ? w : colourDays === 0 ? 0 : colourDays * DW - 1;
+                        const stripeW = w - colourW;
+                        const barColour = colour;
                         return (
-                          <Link
+                          <SegLink
                             key={task.id}
-                            href={`/projects/${projectId}/tasks/${task.id}`}
+                            href={taskLink(baseHref, task.id)}
                             className={`seg ${p.critical ? 'crit' : ''} ${task.blocked ? 'blk' : ''}`}
-                            style={{ left: x(start) + 1, width: w, background: colour }}
-                          >
-                            {task.code}
-                            <span className={`tip ${flip ? 'tr' : ''}`}>
-                              <b>
-                                {task.code} · {task.name}
-                              </b>
-                              <br />
-                              {task.phase} · {task.environment}
-                              <br />
-                              {weekdayShort(start)} {formatDate(start)} → {weekdayShort(end)} {formatDate(end)} ({task.duration} working day
-                              {task.duration === 1 ? '' : 's'})
-                              <br />
-                              Status: {STATUS_LABEL[task.status]}
-                              {task.blocked ? ` · Blocked: ${task.blocker}` : ''}
-                              {p.critical ? ' · Critical path' : ''}
-                            </span>
-                          </Link>
+                            style={{ left: x(start) + 1, width: w, background: 'transparent' }}
+                            label={
+                              <>
+                                {colourW > 0 && <span className="seg-part" style={{ width: colourW, background: barColour }} />}
+                                {stripeW > 0 && <span className="seg-stripe" style={{ left: colourW, width: stripeW }} />}
+                                <span className="seg-label">{task.code}</span>
+                                {p.late && <span className="late-tag">Late</span>}
+                                {task.issues.map((i) => (
+                                  <span key={i.id} className={`flame ${i.solvedAt ? 'solved' : ''}`}>
+                                    🔥
+                                  </span>
+                                ))}
+                              </>
+                            }
+                            tip={
+                              <>
+                                <b>
+                                  {task.code} · {task.name}
+                                </b>
+                                <br />
+                                {task.phase} · {task.environment}
+                                <br />
+                                {formatDate(start)} → {formatDate(end)} ({task.duration} working day
+                                {task.duration === 1 ? '' : 's'})
+                                <br />
+                                Status: {STATUS_LABEL[task.status]}
+                                <br />
+                                Deadline {formatDate(task.deadline)}
+                                {p.late ? ` · Late by ${p.lateWd} working day(s)` : ''}
+                                {task.issues.map((i) => (
+                                  <div key={i.id}>
+                                    🔥 {i.solvedAt ? <s>{i.reason}</s> : i.reason}
+                                    {i.solvedAt ? ' · solved' : ' · open'}
+                                  </div>
+                                ))}
+                                {p.critical ? ' · Critical path' : ''}
+                              </>
+                            }
+                          />
                         );
                       })}
                     </div>
@@ -194,7 +248,7 @@ export function Timeline({
         </div>
       </div>
       <p className="note">
-        Scroll sideways to move along the timeline. Saturdays and Sundays are shaded and never hold work. Hover a segment for the dates; click it to open the task. Closed tasks are hidden. Overlapping tasks of the same person stack into extra rows. Roles in use: {ROLES.join(', ')}.
+        The timeline shows the whole project, from the first task to the last. Closed tasks use their planned dates and keep their normal colour. Scroll sideways to move along the timeline. Saturdays and Sundays are shaded and never hold work. Hover a segment for the dates; click it to open the task. Overlapping tasks of the same person stack into extra rows.
       </p>
     </div>
   );

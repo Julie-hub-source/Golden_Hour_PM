@@ -6,7 +6,9 @@ import { formatDate } from '@/lib/calendar';
 import { PRIORITIES } from '@/lib/types';
 import { ProjectNav } from '@/components/ProjectNav';
 import { ActionForm } from '@/components/ActionForm';
+import { DateField } from '@/components/DateField';
 import { AutoSelect } from '@/components/AutoSelect';
+import { memberLabel } from '@/lib/types';
 import {
   setProjectStart,
   setProjectPriority,
@@ -44,8 +46,8 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
             <ActionForm action={setProjectStart} submitLabel="Save start date" hidden={{ projectId: id }}>
               <fieldset disabled={!allowed('project.setStart')} style={{ border: 0, padding: 0, margin: 0 }}>
                 <label className="field">
-                  Start date (dd/mm/yy)
-                  <input type="text" name="startDate" defaultValue={formatDate(project.startDate)} />
+                  Start date (D/M/YYYY)
+                  <DateField name="startDate" defaultValue={formatDate(project.startDate)} />
                 </label>
               </fieldset>
             </ActionForm>
@@ -70,16 +72,16 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
                 <div className="two-col">
                   <label className="field">
                     UAT commit
-                    <input type="text" name="commitUat" defaultValue={formatDate(project.commitUat)} placeholder="dd/mm/yy" />
+                    <DateField name="commitUat" defaultValue={formatDate(project.commitUat)} />
                   </label>
                   <label className="field">
                     STG commit
-                    <input type="text" name="commitStg" defaultValue={formatDate(project.commitStg)} placeholder="dd/mm/yy" />
+                    <DateField name="commitStg" defaultValue={formatDate(project.commitStg)} />
                   </label>
                 </div>
                 <label className="field">
                   Prod commit
-                  <input type="text" name="commitProd" defaultValue={formatDate(project.commitProd)} />
+                  <DateField name="commitProd" defaultValue={formatDate(project.commitProd)} />
                 </label>
               </fieldset>
             </ActionForm>
@@ -141,7 +143,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
                     <select name="memberId" defaultValue={nonMembers[0].id}>
                       {nonMembers.map((m) => (
                         <option key={m.id} value={m.id}>
-                          {m.name} ({m.role})
+                          {memberLabel(m)}
                         </option>
                       ))}
                     </select>

@@ -10,6 +10,9 @@ import { STATUSES, STATUS_LABEL, type Status, type Task } from '@/lib/types';
 import { AutoSelect } from '@/components/AutoSelect';
 import { ProjectNav } from '@/components/ProjectNav';
 import { updateTask } from '@/app/actions';
+import { memberLabel } from '@/lib/types';
+import { TaskModal } from '@/components/TaskModal';
+import { taskLink } from '@/lib/links';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +22,8 @@ interface SearchParams {
   pic?: string;
   env?: string;
   status?: string;
+  /** Task whose detail popup is open */
+  open?: string;
 }
 
 export default async function BoardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SearchParams> }) {
@@ -47,6 +52,11 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
 
   const canCreate = can(actor, 'task.create', scope).ok;
   const documents = project.documents.split('\n').map((l) => l.trim()).filter(Boolean);
+  // The popup opens on this page with the current filters, and closing it keeps them
+  const filterQs = new URLSearchParams(
+    Object.entries({ pic: sp.pic, env: sp.env, status: sp.status }).filter((e): e is [string, string] => !!e[1]),
+  ).toString();
+  const base = `/projects/${id}${filterQs ? `?${filterQs}` : ''}`;
 
   return (
     <>
@@ -154,8 +164,9 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
                   key={t.id}
                   task={t}
                   projectId={id}
+                  base={base}
                   members={projectMembers}
-                  memberName={(picId) => (picId ? memberById.get(picId)?.name ?? '—' : 'Unassigned')}
+                  memberName={(picId) => (picId && memberById.get(picId) ? memberLabel(memberById.get(picId)!) : picId ? '—' : 'Unassigned')}
                   activeBlockers={t.blockedBy.map((b) => taskById.get(b)).filter((b): b is Task => !!b && !isClosed(b))}
                   critical={schedule.plans.get(t.id)?.critical ?? false}
                   actorCan={(action) => can(actor, action, { ...scope, task: t }).ok}
@@ -167,6 +178,10 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
       </div>
 
       {filtered.length === 0 && <p className="empty">No tasks match these filters.</p>}
+
+      {sp.open && tasks.some((t) => t.id === sp.open) && (
+        <TaskModal projectId={id} taskId={sp.open} base={base} closeHref={base} />
+      )}
     </>
   );
 }
@@ -174,6 +189,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
 function TaskCard({
   task,
   projectId,
+  base,
   members,
   memberName,
   activeBlockers,
@@ -182,6 +198,7 @@ function TaskCard({
 }: {
   task: Task;
   projectId: string;
+  base: string;
   members: { id: string; name: string; role: string }[];
   memberName: (picId: string | null) => string;
   activeBlockers: Task[];
@@ -195,20 +212,28 @@ function TaskCard({
       <div className="meta">
         {task.environment} · {task.phase}
       </div>
-      <Link href={`/projects/${projectId}/tasks/${task.id}`} style={{ color: 'var(--text)', fontWeight: 600 }}>
+      <Link href={taskLink(base, task.id)} scroll={false} style={{ color: 'var(--text)', fontWeight: 600 }}>
         <span className="muted small">{task.code}</span> {task.name}
       </Link>
       {activeBlockers.length > 0 && (
-        <div className="meta">Waiting on {activeBlockers.map((b) => b.code).join(', ')}</div>
+        <div className="meta">Depends on {activeBlockers.map((b) => b.code).join(', ')}</div>
       )}
-      <div className="meta">Deadline {formatDate(task.deadline)} · {task.duration}d {critical && <span className="pill amber">critical</span>}</div>
-      {task.blocked && <div className="meta error">Blocked: {task.blocker}</div>}
+      <div className="meta">Deadline {formatDate(task.deadline)} · {task.duration}d</div>
+      {task.issues.length > 0 && (
+        <div className="flames">
+          {task.issues.map((i) => (
+            <span key={i.id} className={`flame ${i.solvedAt ? 'solved' : ''}`} title={i.solvedAt ? 'Solved' : 'Open'}>
+              🔥
+            </span>
+          ))}
+        </div>
+      )}
       <div className="controls">
         <AutoSelect
           action={updateTask}
           name="picId"
           value={task.picId ?? ''}
-          options={[{ value: '', label: 'Unassigned' }, ...members.map((m) => ({ value: m.id, label: m.name }))]}
+          options={[{ value: '', label: 'Unassigned' }, ...members.map((m) => ({ value: m.id, label: memberLabel(m) }))]}
           hidden={hidden}
           disabled={!actorCan('task.pic')}
           label={`PIC of ${task.code}`}

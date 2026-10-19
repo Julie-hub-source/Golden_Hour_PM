@@ -1,19 +1,16 @@
 import Link from 'next/link';
 import { loadNotifications } from '@/lib/repo';
 import { currentAccount } from '@/lib/session';
-import { PROJECT_TIMEZONE } from '@/lib/calendar';
+import { PROJECT_TIMEZONE, formatDate } from '@/lib/calendar';
 import { markAllNotificationsRead } from '@/app/actions';
 import { ActionForm } from '@/components/ActionForm';
 
-const formatWhen = (iso: string) =>
-  new Intl.DateTimeFormat('en-GB', {
-    timeZone: PROJECT_TIMEZONE,
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso));
+/** Same date format as the rest of the app, plus the time in Asia/Ho_Chi_Minh. */
+const formatWhen = (iso: string) => {
+  const time = new Intl.DateTimeFormat('en-GB', { timeZone: PROJECT_TIMEZONE, hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: PROJECT_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
+  return `${formatDate(day)} ${time}`;
+};
 
 export const dynamic = 'force-dynamic';
 

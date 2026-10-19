@@ -92,33 +92,29 @@ export function todayIso(now: Date = new Date()): string {
 }
 
 /**
- * Parse user input as a calendar date. Accepts dd/mm/yy, dd/mm/yyyy and ISO yyyy-mm-dd.
- * Returns null when the input is not a real date.
+ * Parse user input as a calendar date. Accepts D/M/YYYY (no zero padding needed), with or without a
+ * weekday prefix, and ISO yyyy-mm-dd. Returns null when the input is not a real date.
  */
 export function parseDateInput(input: string): string | null {
-  const s = input.trim();
+  const s = input.trim().replace(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w*\s+/i, '');
   if (ISO_RE.test(s)) return isIsoDate(s) ? s : null;
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(s);
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
   if (!m) return null;
   const day = +m[1];
   const month = +m[2];
-  let year = +m[3];
-  if (m[3].length === 2) year += 2000;
+  const year = +m[3];
   const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   return isIsoDate(iso) ? iso : null;
 }
 
-/** dd/mm/yy display format used across the UI. */
+/**
+ * Display format used everywhere in the app: English weekday + D/M/YYYY, no zero padding,
+ * e.g. "Tue 1/1/2027". parseDateInput accepts the same text back.
+ */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y.slice(2)}`;
-}
-
-/** dd/mm display format used on timeline labels. */
-export function formatDayMonth(iso: string): string {
-  const [, m, d] = iso.split('-');
-  return `${d}/${m}`;
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${weekdayShort(iso)} ${d}/${m}/${y}`;
 }
 
 export function weekdayShort(iso: string): string {

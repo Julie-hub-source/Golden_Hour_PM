@@ -1,4 +1,4 @@
-# Pulse
+# Golden Hour
 
 Early-warning view for projects: where each project is heading against the client commitment, which tasks are blocked or late, and what to fix first. Business rules are in [CLAUDE.md](CLAUDE.md).
 
@@ -33,7 +33,7 @@ There is no login. Use the **Acting as** dropdown in the header to switch accoun
 
 | Concern | File |
 |---|---|
-| Working-day calendar, dd/mm/yy parsing, Asia/Ho_Chi_Minh "today" | [src/lib/calendar.ts](src/lib/calendar.ts) |
+| Working-day calendar, D/M/YYYY date format, Asia/Ho_Chi_Minh "today" | [src/lib/calendar.ts](src/lib/calendar.ts) |
 | Dependency schedule, happy case, complete date, Monte Carlo, priority, what-if | [src/lib/schedule.ts](src/lib/schedule.ts) |
 | Default 13-step flow and project creation | [src/lib/flow.ts](src/lib/flow.ts), [src/lib/project-setup.ts](src/lib/project-setup.ts) |
 | **All permission rules** (single place) | [src/lib/permissions.ts](src/lib/permissions.ts) |
@@ -68,3 +68,11 @@ These were marked **[DEFAULT]** or left open in the spec. Each is a one-line cha
 
 - Supabase free projects pause after about a week without activity. Open the app to wake it, or upgrade if the team needs it always on.
 - Vercel Hobby is fine for a small team. Cron is limited to once a day, which is what the alert rules need.
+
+## Demo project
+
+To see the dashboard with realistic data, run the migration first, then:
+
+    npm run seed:demo
+
+This creates "Payment Gateway v2 (demo)", halfway through its flow, with struggles on several tasks. Running it again replaces only the demo project.

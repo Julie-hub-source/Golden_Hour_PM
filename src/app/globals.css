@@ -215,7 +215,8 @@ fieldset legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
 .chip { display: inline-flex; align-items: center; gap: 6px; }
 .chip i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-.tlscroll { overflow-x: auto; padding-bottom: 110px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+/* Height and width follow the content: lanes grow with team size, the track with the plan length */
+.tlscroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .tlin { position: relative; min-width: 100%; }
 .axrow { display: flex; height: 22px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--muted); }
 .axrow .sp, .lane .llabel { width: 190px; flex: none; position: sticky; left: 0; background: #fff; z-index: 4; }
@@ -235,13 +236,12 @@ fieldset legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .seg:hover { filter: brightness(1.08); z-index: 6; }
 .seg.crit { outline: 2px solid var(--amber); outline-offset: 1px; }
 .seg.blk { box-shadow: 0 0 0 2px var(--red); }
-.seg .tip {
-  display: none; position: absolute; top: 30px; left: 0; width: 260px; background: #111827; color: #fff; padding: 10px 12px;
-  border-radius: 8px; font-size: 12px; font-weight: 400; z-index: 20; box-shadow: 0 6px 18px rgba(0, 0, 0, .25);
-  white-space: normal; line-height: 1.5;
+.tip-fixed {
+  position: fixed; z-index: 50; width: 260px; pointer-events: none; background: #111827; color: #fff; padding: 10px 12px;
+  border-radius: 8px; font-size: 12px; font-weight: 400; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); line-height: 1.5;
 }
-.seg .tip.tr { left: auto; right: 0; }
-.seg:hover .tip { display: block; }
+.today-line { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--blue); z-index: 1; }
+.today-label { position: absolute; top: 4px; color: var(--blue); font-weight: 700; white-space: nowrap; transform: translateX(-50%); }
 
 .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
 .pre { white-space: pre-wrap; line-height: 1.5; }
@@ -250,3 +250,67 @@ fieldset legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 .info summary { cursor: pointer; font-size: 15px; list-style: none; }
 .info ul { margin: 0; padding-left: 18px; }
 .info .grid3 { margin-top: 12px; }
+
+/* Task detail popup. The backdrop is a link, so closing needs no JavaScript. */
+.mbg {
+  position: fixed; inset: 0; z-index: 40; background: rgba(17, 24, 39, .45);
+  display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow: auto;
+}
+.mbg-backdrop { position: absolute; inset: 0; }
+.mbox {
+  position: relative; background: var(--surface); border-radius: 12px; padding: 20px; width: min(900px, 100%);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .25);
+}
+.mbox .mtop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.mbox .mtop h3 { margin: 0; font-size: 16px; }
+.x { font-size: 18px; color: var(--muted); text-decoration: none; padding: 2px 8px; border-radius: 6px; }
+.x:hover { color: var(--ink); background: var(--accent-soft); text-decoration: none; }
+
+/* Struggles: one flame per struggle. Solved flames are crossed out. */
+/* Each flame sits on a white disc, so it stays visible on any task colour */
+.flame {
+  display: inline-flex; align-items: center; justify-content: center; position: relative;
+  width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .15);
+  font-size: 11px; line-height: 1; flex: none;
+}
+/* Solved: slashed in red, colour kept */
+.flame.solved { position: relative; }
+.flame.solved::after {
+  content: ""; position: absolute; left: -2px; right: -2px; top: 50%; height: 2px; background: var(--red); transform: rotate(-35deg);
+}
+.stru { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 6px; }
+.stru.solved { background: #fafafa; color: var(--muted); }
+.struggles-list { list-style: none; margin: 6px 0; padding: 0; }
+
+/* Date picker */
+.datefield { position: relative; display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; max-width: 100%; }
+.datefield input { width: 150px; cursor: pointer; }
+.datefield input.has-error { border-color: var(--red); background: #fff5f5; }
+.dp-err { flex-basis: 100%; font-size: 12px; color: var(--red); margin-top: 2px; }
+.dp {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; width: 260px; background: #fff;
+  border: 1px solid var(--line); border-radius: 12px; padding: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+}
+.dp-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 14px; }
+.dp button { background: none; color: var(--blue); border: 0; padding: 2px 6px; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.dp-wd { font-size: 11px; color: var(--muted); padding: 4px 0; }
+.dp .dp-day { color: var(--ink); padding: 6px 0; border-radius: 6px; font-size: 13px; }
+.dp .dp-day:hover { background: var(--accent-soft); }
+.dp .dp-day.sel { background: var(--blue); color: #fff; }
+.dp .dp-day.today { box-shadow: inset 0 0 0 1px var(--blue); }
+.dp-foot { margin-top: 6px; text-align: right; }
+
+/* Gantt bar split: person's colour up to the deadline, red stripes after it */
+.seg-part { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 6px 0 0 6px; }
+.seg-stripe {
+  position: absolute; top: 0; bottom: 0; border-radius: 0 6px 6px 0; background-color: #FCEBEB;
+  background-image: repeating-linear-gradient(45deg, rgba(226, 75, 74, .45) 0 4px, transparent 4px 8px);
+}
+.seg-label { position: relative; z-index: 1; text-shadow: 0 0 2px rgba(0, 0, 0, .35); }
+.late-tag {
+  position: absolute; right: 3px; top: 50%; transform: translateY(-50%); z-index: 2; background: #E24B4A; color: #fff;
+  font-size: 9px; line-height: 13px; padding: 0 4px; border-radius: 4px; text-shadow: none;
+}
+.seg.done { opacity: .9; }
+.flames { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }

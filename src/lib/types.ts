@@ -34,6 +34,9 @@ export type OutputType = (typeof OUTPUT_TYPES)[number];
 /** Role order used for timeline lanes and team lists. */
 export const ROLE_ORDER: Role[] = ['PM', 'PO', 'BA', 'Designer', 'FE', 'BE', 'QC'];
 
+/** How a member is shown in lists and dropdowns: name, a dot, then role, e.g. Alex.PM */
+export const memberLabel = (m: { name: string; role: string }) => `${m.name}.${m.role}`;
+
 export interface Member {
   id: string;
   name: string;
@@ -52,6 +55,15 @@ export interface Project {
   clientInfo: string;
   documents: string;
   taskSeq: number;
+}
+
+/** A struggle on a task: something outside the team's control is in the way. Each one is shown as a flame. */
+export interface TaskIssue {
+  id: string;
+  reason: string;
+  createdBy: string | null;
+  createdAt: string;
+  solvedAt: string | null;
 }
 
 export interface TaskOutput {
@@ -74,9 +86,11 @@ export interface Task {
   status: Status;
   duration: number;
   deadline: string; // YYYY-MM-DD, planned end (inclusive)
+  /** Tasks this one depends on: they must finish before it can start. */
   blockedBy: string[];
+  /** Derived: true while the task has at least one unsolved struggle. */
   blocked: boolean;
-  blocker: string;
+  issues: TaskIssue[];
   description: string;
   sinceDate: string; // YYYY-MM-DD, last status change
   alerts: string[]; // 'late' | 'todo'
