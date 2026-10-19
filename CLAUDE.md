@@ -1,6 +1,6 @@
 # CLAUDE.md — Golden Hour (formerly Pulse)
 
-Business logic specification for building Pulse as a real web app. This file describes WHAT the system must do. The HTML prototype (`pulse_prototype_v9.html`) shows the intended UI and can be used as a visual reference, but its code is not an architecture template.
+Business logic specification for Golden Hour (formerly Pulse), a web app for tracking project delivery. This file describes WHAT the system must do. The implementation lives in this repository (Next.js, Supabase, Vercel); the spec and the code must agree.
 
 Items marked **[DEFAULT]** were not explicitly confirmed. Implement the default and flag it in the pull request. Items marked **[OPEN]** must be asked before implementation (see section 16).
 
@@ -8,7 +8,7 @@ Items marked **[DEFAULT]** were not explicitly confirmed. Implement the default 
 
 ## 1. Purpose
 
-Projects slip one stuck task at a time, and managers learn about it at the deadline. Pulse shows:
+Projects slip one stuck task at a time, and managers learn about it at the deadline. Golden Hour shows:
 
 1. Where each project is heading: projected completion against the client commitment, and how likely a late finish is.
 2. Which tasks have open struggles or are late, who owns them, and which tasks depend on them.
@@ -74,7 +74,7 @@ Notes:
 
 ## 5. Default flow (created with every project)
 
-Thirteen steps, 35 tasks. Every task in a step is blocked by **all** tasks of the previous step. Tasks inside one step run in parallel. In each Test & Debug step, the QC test task, the BE debug task and the FE debug task all run in parallel.
+Thirteen steps, 35 tasks. Every task in a step depends on **all** tasks of the previous step. Tasks inside one step run in parallel. In each Test & Debug step, the QC test task, the BE debug task and the FE debug task all run in parallel.
 
 | # | Phase | Environment | Tasks (role, default working days) |
 |---|---|---|---|
@@ -187,7 +187,7 @@ Used for: the environment timeline table and the client commitment comparison.
 ### 7.5 Changing the start date
 
 - Only PM may change it.
-- Task deadlines shift by the same number of working days... [DEFAULT: calendar days, same as the prototype].
+- Task deadlines shift by the same number of working days... [DEFAULT: calendar days].
 - Client commit dates keep their **calendar** dates. Their stored offsets are recalculated.
 
 ---
@@ -297,7 +297,7 @@ Project priority (Highest, High, Medium, Low, Lowest) is a label only **[DEFAULT
 ## 12. Alerts and notifications
 
 ### 12.1 Alert rules (confirmed)
-Checked daily against the real system date (Asia/Ho_Chi_Minh), and also each time the app loads. Each alert is sent once per task until the relevant field changes.
+Checked daily by the cron job against the real system date (Asia/Ho_Chi_Minh). The app also checks when a project page loads, at most once every 10 minutes per server instance. Each alert is sent once per task until the relevant field changes.
 
 1. **Late**: an open task whose deadline is strictly before today (section 7.6). Send to every member of the project, then set `alerts.late`. Reset `alerts.late` only when the deadline changes or the task is reopened.
    Message: `LATE: {code} "{name}" passed its deadline ({deadline}) by {n} working day(s). PIC: {pic}.`
@@ -347,7 +347,7 @@ Delivery: in-app only for now [DEFAULT].
 
 ## 15. Non-functional notes
 
-- The prototype keeps data in browser memory only. The real build needs persistence (PostgreSQL recommended), an API, and server-side permission checks.
+- Data is stored in Supabase (PostgreSQL). All reads and writes go through server code with server-side permission checks.
 - Store dates as calendar dates. Store `sinceMs` as a date, not a timestamp.
 - The simulation must return quickly for interactive use. Compute it server-side and cache it.
 - Audit trail: [DEFAULT] keep a simple change log per task (who, what, when). Full audit is open (Q6).
@@ -367,11 +367,11 @@ Delivery: in-app only for now [DEFAULT].
 - **Q4. Half-day durations?** [No, whole working days.]
 - **Q5. Notification channels beyond in-app (email, Slack, Teams)?** [In-app only.]
 - **Q6. Audit trail:** full history, or the simple change log? [Simple change log.]
-- **Q7. Blocked-by editing by PIC:** should a PIC be able to add a blocker when they discover one? [No, PM/PO only.]
+- **Q7. Depends-on editing by PIC:** should a PIC be able to add a dependency when they discover one? [No, PM/PO only.]
 - **Q8. Reopening a Closed task:** allowed? If yes, should its successors become blocked again? [Allowed; the link is kept, so successors are blocked again.]
 - **Q9. Task deadline change:** should it move successor deadlines? [No, only that task.]
 - **Q10. Cross-project dependencies:** needed? [No.]
-- **Q11. Workload threshold:** the previous 15-day "overloaded" flag is not used in v9. Keep it, and at what value? [Not shown.]
+- **Q11. Workload threshold:** the previous 15-day "overloaded" flag is not used. Keep it, and at what value? [Not shown.]
 
 ---
 
