@@ -136,6 +136,7 @@ async function main() {
         client_info: 'Client: ACME Retail\nBusiness owner: Mr. Tran (Head of E-commerce)',
         documents: 'Requirement spec v1.2 | https://example.com/req-spec',
         task_seq: tasks.length,
+        task_delete_locked: true,
       })
       .select('id')
       .single(),

@@ -55,6 +55,7 @@ function taskOrFail(data: PortfolioProject, taskId: string): Task {
 
 const scopeOf = (data: PortfolioProject, task?: Pick<Task, 'picId'>) => ({
   projectMemberIds: new Set(data.memberIds),
+  taskDeleteLocked: data.project.taskDeleteLocked,
   task,
 });
 
@@ -179,7 +180,7 @@ export async function createProject(fd: FormData): Promise<ActionResult> {
     );
     if (taskRes.error) throw new Error(taskRes.error.message);
 
-    return { ok: true, redirect: `/projects/${projectId}` };
+    return { ok: true, redirect: `/projects/${projectId}/dashboard` };
   });
 }
 
@@ -652,5 +653,22 @@ export async function removeTaskOutput(fd: FormData): Promise<ActionResult> {
     const res = await db().from('task_outputs').delete().eq('id', str(fd, 'outputId')).eq('task_id', task.id);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
+  });
+}
+
+/** Deletes a project with its tasks, links, struggles and notifications (PM only). Irreversible. */
+export async function deleteProject(fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    const { actor } = await currentAccount();
+    const projectId = str(fd, 'projectId');
+    const data = await loadOrFail(projectId);
+    authorize(actor, 'project.delete', scopeOf(data));
+    if (str(fd, 'confirmName') !== data.project.name) throw new UserError('Type the project name exactly to confirm.');
+
+    // Tell members first; the notifications are removed with the project
+    await notify(data.memberIds, `${actor!.name} deleted the project "${data.project.name}".`, null, actor!.id);
+    const res = await db().from('projects').delete().eq('id', projectId);
+    if (res.error) throw new Error(res.error.message);
+    return { ok: true, redirect: '/' };
   });
 }

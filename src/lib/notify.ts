@@ -31,7 +31,14 @@ export function pmPoAndPic(data: PortfolioProject, task: Pick<Task, 'picId'> | n
  * Idempotent: a task's `alerts` field records what was already sent.
  * Run on app load and daily from the cron route.
  */
-export async function runDueAlerts(today: string = todayIso()): Promise<{ sent: number }> {
+// Page loads check alerts at most every 10 minutes per server instance. The daily cron always runs.
+const CHECK_EVERY_MS = 10 * 60 * 1000;
+let lastCheck = { day: '', at: 0 };
+
+export async function runDueAlerts(today: string = todayIso(), opts: { force?: boolean } = {}): Promise<{ sent: number }> {
+  const now = Date.now();
+  if (!opts.force && lastCheck.day === today && now - lastCheck.at < CHECK_EVERY_MS) return { sent: 0 };
+  lastCheck = { day: today, at: now };
   const pf = await loadPortfolio();
   const memberName = new Map(pf.members.map((m) => [m.id, m.name]));
   let sent = 0;

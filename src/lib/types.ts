@@ -46,6 +46,8 @@ export interface Member {
 export interface Project {
   id: string;
   name: string;
+  /** When true, nobody can delete tasks in this project */
+  taskDeleteLocked: boolean;
   startDate: string; // YYYY-MM-DD
   commitUat: string | null;
   commitStg: string | null;

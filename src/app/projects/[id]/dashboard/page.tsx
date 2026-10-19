@@ -7,14 +7,13 @@ import { can } from '@/lib/permissions';
 import { bufferDays, closedPlanMap, dependencySchedule, isClosed, priorityList, whatIf } from '@/lib/schedule';
 import { formatDate, todayIso } from '@/lib/calendar';
 import { ProjectNav } from '@/components/ProjectNav';
-import { memberLabel } from '@/lib/types';
-import { ActionForm } from '@/components/ActionForm';
-import { DateField } from '@/components/DateField';
+import { STATUS_LABEL, memberLabel } from '@/lib/types';
+import { CommitDates } from '@/components/CommitDates';
+import { ProjectDescription } from '@/components/ProjectDescription';
 import { Timeline } from '@/components/Timeline';
 import { DependencyTree } from '@/components/DependencyTree';
 import { TaskModal } from '@/components/TaskModal';
 import { taskLink } from '@/lib/links';
-import { setProjectCommits } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +38,14 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 /** Date in the format used by the environment timeline, e.g. "Mon 19/10/26". */
 const wd = (iso: string) => formatDate(iso);
+
+/** Colour of each environment column (same palette as the health boxes). */
+const ENV_TONE: Record<string, string> = { UAT: 'tone-blue', STG: 'tone-purple', Prod: 'tone-green' };
+
+/** Colour of each role in the workload table. */
+const ROLE_COLOUR: Record<string, string> = {
+  PM: '#64748b', PO: '#6366f1', BA: '#0d9488', Designer: '#db2777', FE: '#3b82f6', BE: '#16a34a', QC: '#d97706',
+};
 
 export default async function DashboardPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<SearchParams> }) {
   const { id } = await params;
@@ -101,9 +108,9 @@ async function HealthTab({
   projectId: string;
 }) {
   const { project, tasks, members } = data;
-  const health = await getHealth(data);
+  // The health numbers and the workload table are independent, so load them together
+  const [health, portfolio] = await Promise.all([getHealth(data), loadPortfolio()]);
   const closedCount = tasks.filter(isClosed).length;
-  const portfolio = await loadPortfolio();
 
   const banner =
     health.color === 'red' && health.projectedProd
@@ -132,22 +139,24 @@ async function HealthTab({
 
   return (
     <>
+      <ProjectDescription projectId={projectId} project={project} />
+
       <div className={`banner ${health.color}`}>
         <strong>{health.color === 'red' ? 'Late' : health.color === 'amber' ? 'At risk' : 'On track'}.</strong> {banner}
       </div>
 
       <div className="kpis">
-        <div className="kpi">
+        <div className="kpi tone-blue">
           <div className="label">Projected Prod completion</div>
           <div className="value" style={{ fontSize: 18 }}>{health.projectedProd ? wd(health.projectedProd) : 'Done'}</div>
           <div className="hint">End date of the current plan (happy case)</div>
         </div>
-        <div className="kpi">
+        <div className="kpi tone-purple">
           <div className="label">Client commitment (Prod)</div>
           <div className="value" style={{ fontSize: 18 }}>{wd(project.commitProd)}</div>
           <div className="hint">Prod commit date agreed with the client</div>
         </div>
-        <div className="kpi">
+        <div className="kpi tone-amber">
           <div className="label">Buffer</div>
           <div
             className="value"
@@ -163,7 +172,7 @@ async function HealthTab({
           </div>
           <div className="hint">Working days between commitment and projection. Negative = late</div>
         </div>
-        <div className="kpi">
+        <div className="kpi tone-green">
           <div className="label">Progress</div>
           <div className="value" style={{ fontSize: 18 }}>
             {closedCount}/{tasks.length} ({tasks.length ? Math.round((closedCount / tasks.length) * 100) : 0}%)
@@ -174,14 +183,14 @@ async function HealthTab({
 
       <div className="card">
         <h3>Environment timeline</h3>
-        <ActionForm action={setProjectCommits} submitLabel="Save client commitments" hidden={{ projectId }}>
+        <div>
           <div>
             <table>
               <thead>
                 <tr>
                   <th />
                   {envs.map((e) => (
-                    <th key={e.env}>{e.done ? `${e.env} (done)` : e.env}</th>
+                    <th key={e.env} className={`env-head ${ENV_TONE[e.env] ?? ''}`}>{e.done ? `${e.env} (done)` : e.env}</th>
                   ))}
                 </tr>
               </thead>
@@ -201,28 +210,19 @@ async function HealthTab({
                 <tr>
                   <td className="k">Late (working days)</td>
                   {envs.map((e) => (
-                    <td key={e.env} style={{ color: e.late > 0 ? 'var(--red)' : undefined, fontWeight: 600 }}>
-                      {`+${e.late}`}
+                    <td key={e.env}>
+                      <span className={`tag ${e.late > 0 ? 't-red' : 't-green'}`}>{`+${e.late}`}</span>
                     </td>
                   ))}
                 </tr>
                 <tr>
                   <td className="k">2) Client commitment</td>
-                  {envs.map((e) => {
-                    if (e.env === 'Prod') {
-                      return (
-                        <td key={e.env}>
-                          <DateField name="commitProd" defaultValue={wd(project.commitProd)} disabled={!canCommit} />
-                        </td>
-                      );
-                    }
-                    const commit = commitFor(e.env);
-                    return (
-                      <td key={e.env}>
-                        <DateField name={e.env === 'UAT' ? 'commitUat' : 'commitStg'} defaultValue={commit ? wd(commit) : ''} disabled={!canCommit} />
-                      </td>
-                    );
-                  })}
+                  <CommitDates
+                    projectId={projectId}
+                    envs={envs.map((e) => e.env)}
+                    commits={{ commitUat: project.commitUat, commitStg: project.commitStg, commitProd: project.commitProd }}
+                    canEdit={canCommit}
+                  />
                 </tr>
                 <tr>
                   <td className="k">Buffer (working days)</td>
@@ -232,8 +232,8 @@ async function HealthTab({
                     if (!commit || !e.completion) return <td key={e.env}>—</td>;
                     const b = bufferDays(e.completion, commit);
                     return (
-                      <td key={e.env} style={{ color: b >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
-                        {b >= 0 ? `+${b}` : b}
+                      <td key={e.env}>
+                        <span className={`tag ${b >= 0 ? 't-green' : 't-red'}`}>{b >= 0 ? `+${b}` : b}</span>
                       </td>
                     );
                   })}
@@ -242,29 +242,42 @@ async function HealthTab({
             </table>
           </div>
           {!canCommit && <p className="small muted" style={{ marginTop: 8 }}>Only PM and PO can change client commitments.</p>}
-        </ActionForm>
+        </div>
       </div>
 
       <div className="card">
         <h3>Workload by person (all projects)</h3>
-        <table>
+        <table className="workload">
           <thead>
             <tr>
               <th>Name</th>
               <th>Role</th>
               <th className="num">Projects</th>
-              <th className="num">Open tasks</th>
+              <th>Open tasks</th>
             </tr>
           </thead>
           <tbody>
-            {workload.map((w) => (
-              <tr key={w.member.id}>
-                <td>{w.member.name}</td>
-                <td>{w.member.role}</td>
-                <td className="num">{w.projects}</td>
-                <td className="num">{w.openTasks}</td>
-              </tr>
-            ))}
+            {workload.map((w) => {
+              const most = Math.max(1, ...workload.map((x) => x.openTasks));
+              const colour = ROLE_COLOUR[w.member.role] ?? '#64748b';
+              return (
+                <tr key={w.member.id}>
+                  <td style={{ fontWeight: 600 }}>{w.member.name}</td>
+                  <td>
+                    <span className="role-pill" style={{ background: `${colour}1a`, color: colour }}>{w.member.role}</span>
+                  </td>
+                  <td className="num">{w.projects}</td>
+                  <td>
+                    <div className="bar-cell">
+                      <span className="bar-track">
+                        <span className="bar-fill" style={{ width: `${(w.openTasks / most) * 100}%`, background: colour }} />
+                      </span>
+                      <span className="bar-num">{w.openTasks}</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -293,7 +306,7 @@ function WhatIfTab({
 
   return (
     <div className="two-col">
-      <div className="card">
+      <div className="card accent-purple">
         <h3>What if a task slips?</h3>
         <p className="small muted" style={{ marginBottom: 12 }}>
           Pick an open task and an extra delay in working days (0–10). The projection re-runs the schedule.
@@ -323,27 +336,25 @@ function WhatIfTab({
         </p>
       </div>
 
-      <div className="card">
+      <div className="card accent-blue">
         <h3>Result</h3>
         {!result && <p className="empty">No open tasks to test.</p>}
         {result && (
           <>
-            <dl className="facts">
-              <dt>Projected Prod completion</dt>
-              <dd>{result.newProdCompletion ? wd(result.newProdCompletion) : 'Done'}</dd>
-              <dt>Project finish moves by</dt>
-              <dd>{result.shift} working day(s)</dd>
-              <dt>Buffer vs Prod commit</dt>
-              <dd>
-                {result.buffer === null ? (
-                  '—'
-                ) : result.buffer >= 0 ? (
-                  <span className="pill green">{result.buffer} wd spare</span>
-                ) : (
-                  <span className="pill red">{Math.abs(result.buffer)} wd late</span>
-                )}
-              </dd>
-            </dl>
+            <div className="kpis" style={{ marginBottom: 14 }}>
+              <div className="kpi tone-blue">
+                <div className="label">Projected Prod completion</div>
+                <div className="value" style={{ fontSize: 18 }}>{result.newProdCompletion ? wd(result.newProdCompletion) : 'Done'}</div>
+              </div>
+              <div className="kpi tone-amber">
+                <div className="label">Project finish moves by</div>
+                <div className="value" style={{ fontSize: 18 }}>{result.shift} working day(s)</div>
+              </div>
+              <div className={`kpi ${result.buffer !== null && result.buffer < 0 ? 'tone-red' : 'tone-green'}`}>
+                <div className="label">Buffer vs Prod commit</div>
+                <div className="value" style={{ fontSize: 18 }}>{result.buffer === null ? '—' : result.buffer >= 0 ? `+${result.buffer} wd spare` : `${Math.abs(result.buffer)} wd late`}</div>
+              </div>
+            </div>
             <h3 style={{ margin: '14px 0 6px' }}>Pushed back</h3>
             {result.pushed.length === 0 && <p className="small muted">No other task moves.</p>}
             <ul className="log small">
@@ -385,11 +396,20 @@ function PriorityTab({
   const levelPill = (l: string) => (l === 'Late' ? 'red' : l === 'Highest' ? 'red' : l === 'High' ? 'amber' : l === 'Medium' ? 'muted' : 'green');
 
   return (
-    <div className="card">
+    <div className="card accent-amber">
       <h3>What to fix first</h3>
-      <p className="small muted" style={{ marginBottom: 12 }}>
-        Level comes from today ({formatDate(today)}). Late: deadline passed (always the top level). Highest: overdue, or planned for today. High: starts in 1 to 3 working days. Medium: 4 to 5 working days. Low: more than 5. A task with more than 2 open struggles moves up one level. Score = (dependents + 1) × risk ÷ duration; risk: late 4, open struggle 3, critical path 2, otherwise 1.
-      </p>
+      <div className="prio-guide">
+        <p className="small muted" style={{ marginBottom: 6 }}>Level comes from today ({formatDate(today)}).</p>
+        <ul className="small">
+          <li><b>Late:</b> deadline passed. Always the top level.</li>
+          <li><b>Highest:</b> overdue, or planned for today.</li>
+          <li><b>High:</b> starts in 1 to 3 working days.</li>
+          <li><b>Medium:</b> starts in 4 to 5 working days.</li>
+          <li><b>Low:</b> starts in more than 5 working days.</li>
+          <li>A task with more than 2 open struggles moves up one level.</li>
+          <li><b>Score</b> = (dependents + 1) × risk ÷ duration. Risk: late 4, open struggle 3, critical path 2, otherwise 1.</li>
+        </ul>
+      </div>
       {items.length === 0 && <p className="empty">No open tasks.</p>}
       {items.length > 0 && (
         <table>
@@ -408,12 +428,13 @@ function PriorityTab({
           </thead>
           <tbody>
             {items.map((it, i) => (
-              <tr key={it.task.id}>
+              <tr key={it.task.id} className={`prio-row s-${it.task.status}`}>
                 <td>{i + 1}</td>
                 <td>
                   <Link href={taskLink(base, it.task.id)} scroll={false}>
                     {it.task.code} {it.task.name}
                   </Link>{' '}
+                  <span className={`st-pill s-${it.task.status}`}>{STATUS_LABEL[it.task.status]}</span>{' '}
                   {it.task.issues.map((issue) => (
                     <span key={issue.id} className={`flame ${issue.solvedAt ? 'solved' : ''}`}>
                       🔥
@@ -425,7 +446,7 @@ function PriorityTab({
                 </td>
                 <td>{nameOf(it.task.picId)}</td>
                 <td>
-                  <span className={`pill ${levelPill(it.level)}`}>{it.level}</span>
+                  <span className={`lvl lvl-${it.level.toLowerCase()}`}>{it.level}</span>
                 </td>
                 <td className="small">{it.why}</td>
                 <td className="num">{it.downstream}</td>

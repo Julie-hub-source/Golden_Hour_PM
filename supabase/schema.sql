@@ -22,6 +22,7 @@ create table if not exists projects (
   client_info   text not null default '',
   documents     text not null default '',   -- one per line: "Name | link"
   task_seq      integer not null default 0, -- last issued task number (IDs are never reused)
+  task_delete_locked boolean not null default false, -- when true, tasks cannot be deleted in this project
   created_at    timestamptz not null default now()
 );
 

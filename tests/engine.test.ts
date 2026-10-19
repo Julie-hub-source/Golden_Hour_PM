@@ -323,3 +323,10 @@ test('environment late days move that environment and every later one', () => {
   assert.equal(prod.start, '2026-01-12', 'Prod starts after the moved UAT completion');
   assert.equal(plain.envs.find((e) => e.env === 'Prod')!.start, '2026-01-07');
 });
+
+test('task deletion can be turned off per project, for everyone including PM', () => {
+  const pm = { id: 'pm', role: 'PM' as const, name: 'pm' };
+  const members = new Set(['pm']);
+  assert.equal(can(pm, 'task.delete', { projectMemberIds: members }).ok, true);
+  assert.equal(can(pm, 'task.delete', { projectMemberIds: members, taskDeleteLocked: true }).ok, false);
+});

@@ -52,7 +52,7 @@ export default async function TeamPage() {
                     {projects.length === 0 && <span className="muted small">None</span>}
                     {projects.map((p) => (
                       <div key={p.id} className="small">
-                        <Link href={`/projects/${p.id}`}>{p.name}</Link>
+                        <Link href={`/projects/${p.id}/dashboard`}>{p.name}</Link>
                       </div>
                     ))}
                   </td>

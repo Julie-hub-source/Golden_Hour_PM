@@ -27,7 +27,7 @@ export async function TaskDetail({ projectId, taskId, base }: { projectId: strin
   if (!task) return <p className="empty">This task no longer exists.</p>;
 
   const log = await loadTaskLog(task.id);
-  const scope = { projectMemberIds: new Set(memberIds), task };
+  const scope = { projectMemberIds: new Set(memberIds), task, taskDeleteLocked: project.taskDeleteLocked };
   const allowed = (action: Action) => can(actor, action, scope).ok;
   const projectMembers = members.filter((m) => memberIds.includes(m.id));
   const taskById = new Map(tasks.map((t) => [t.id, t]));

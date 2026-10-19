@@ -51,7 +51,6 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   });
 
   const canCreate = can(actor, 'task.create', scope).ok;
-  const documents = project.documents.split('\n').map((l) => l.trim()).filter(Boolean);
   // The popup opens on this page with the current filters, and closing it keeps them
   const filterQs = new URLSearchParams(
     Object.entries({ pic: sp.pic, env: sp.env, status: sp.status }).filter((e): e is [string, string] => !!e[1]),
@@ -71,38 +70,6 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         </span>
       </div>
 
-      <details className="section">
-        <summary>Project description</summary>
-        <div className="two-col">
-          <div>
-            <h3 className="small muted" style={{ marginBottom: 4 }}>Context</h3>
-            <p style={{ whiteSpace: 'pre-wrap' }}>{project.context || <span className="muted">Not set.</span>}</p>
-          </div>
-          <div>
-            <h3 className="small muted" style={{ marginBottom: 4 }}>Client info</h3>
-            <p style={{ whiteSpace: 'pre-wrap' }}>{project.clientInfo || <span className="muted">Not set.</span>}</p>
-            <h3 className="small muted" style={{ marginBottom: 4 }}>Related documents</h3>
-            {documents.length === 0 && <p className="muted">None.</p>}
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-              {documents.map((line) => {
-                const idx = line.lastIndexOf('|');
-                const label = idx > -1 ? line.slice(0, idx).trim() : line;
-                const url = idx > -1 ? line.slice(idx + 1).trim() : line;
-                return (
-                  <li key={line}>
-                    <a href={url} target="_blank" rel="noreferrer">
-                      {label}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </div>
-        <p className="small" style={{ marginTop: 10 }}>
-          <Link href={`/projects/${id}/settings`}>Edit description, dates and team</Link>
-        </p>
-      </details>
 
       <form method="get" className="filters">
         <label className="field">
@@ -154,7 +121,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         {STATUSES.map((status) => {
           const col = filtered.filter((t) => t.status === status);
           return (
-            <section key={status} className="col">
+            <section key={status} className={`col s-${status}`}>
               <div className="colh">
                 <span>{STATUS_LABEL[status]}</span>
                 <span>{col.length}</span>
@@ -210,7 +177,7 @@ function TaskCard({
   return (
     <div className={classes}>
       <div className="meta">
-        {task.environment} · {task.phase}
+        <span className={`env-tag env-${task.environment.toLowerCase()}`}>{task.environment}</span> {task.phase}
       </div>
       <Link href={taskLink(base, task.id)} scroll={false} style={{ color: 'var(--text)', fontWeight: 600 }}>
         <span className="muted small">{task.code}</span> {task.name}

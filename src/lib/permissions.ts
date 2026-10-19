@@ -12,6 +12,7 @@ export type Action =
   | 'project.setCommit'
   | 'project.setDescription'
   | 'project.members'
+  | 'project.delete'
   | 'member.create'
   | 'task.create'
   | 'task.delete'
@@ -34,6 +35,8 @@ export interface Actor {
 export interface Scope {
   /** Member ids of the project. Omit for actions that are not tied to a project. */
   projectMemberIds?: Set<string>;
+  /** The project has task deletion turned off. */
+  taskDeleteLocked?: boolean;
   /** Task for PIC-scoped actions. */
   task?: Pick<Task, 'picId'>;
 }
@@ -47,6 +50,7 @@ const PM_ONLY: Action[] = [
   'project.setStart',
   'project.setPriority',
   'project.members',
+  'project.delete',
   'member.create',
 ];
 
@@ -75,6 +79,10 @@ export type Decision = { ok: true } | { ok: false; reason: string };
 
 export function can(actor: Actor | null | undefined, action: Action, scope: Scope = {}): Decision {
   if (!actor) return { ok: false, reason: 'Choose an account first.' };
+  // A locked project cannot have tasks or the project itself deleted
+  if ((action === 'task.delete' || action === 'project.delete') && scope.taskDeleteLocked) {
+    return { ok: false, reason: 'This project is locked against deletion.' };
+  }
 
   // Project-scoped actions need project membership. PM is the project admin and may act on any project.
   const needsProject = action !== 'project.create' && action !== 'member.create';

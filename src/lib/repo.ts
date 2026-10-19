@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { createHash } from 'node:crypto';
 import { db } from './supabase';
 import { simulateProd, type SimResult, happyCase, healthColor, type HealthColor, completeDate, bufferDays, isClosed, dependencySchedule, lateMap } from './schedule';
@@ -9,7 +10,7 @@ import type { Member, Project, ProjectData, Task, TaskIssue, TaskOutput, Role, E
 interface MemberRow { id: string; name: string; role: Role }
 interface ProjectRow {
   id: string; name: string; start_date: string; commit_uat: string | null; commit_stg: string | null;
-  commit_prod: string; priority: Priority; context: string; client_info: string; documents: string; task_seq: number;
+  commit_prod: string; priority: Priority; task_delete_locked: boolean; context: string; client_info: string; documents: string; task_seq: number;
 }
 interface TaskRow {
   id: string; project_id: string; code: string; name: string; phase: string; environment: Environment;
@@ -33,6 +34,7 @@ export const mapProject = (r: ProjectRow): Project => ({
   clientInfo: r.client_info,
   documents: r.documents,
   taskSeq: r.task_seq,
+  taskDeleteLocked: r.task_delete_locked ?? false,
 });
 
 const mapIssue = (r: IssueRow): TaskIssue => ({ id: r.id, reason: r.reason, createdBy: r.created_by, createdAt: r.created_at, solvedAt: r.solved_at });
@@ -78,51 +80,55 @@ function must<T>(res: { data: T | null; error: { message: string } | null }): T 
 
 /* ---------------- Loaders ---------------- */
 
-export async function loadMembers(): Promise<Member[]> {
+async function loadMembersUncached(): Promise<Member[]> {
   const rows = must<MemberRow[]>(await db().from('members').select('id, name, role').order('name'));
   return rows.map(mapMember);
 }
+/** Cached per request, so the header, the page and its loaders share one query. */
+export const loadMembers = cache(loadMembersUncached);
 
 export interface PortfolioProject extends ProjectData {
   /** Member ids of the project. */
   memberIds: string[];
 }
 
-/** Everything for one project, with outputs. Returns null when it does not exist. */
-export async function loadProjectData(projectId: string): Promise<PortfolioProject | null> {
-  const projectRes = await db().from('projects').select('*').eq('id', projectId).maybeSingle();
+/**
+ * Everything for one project, with outputs. Returns null when it does not exist.
+ * Queries run in parallel (two rounds) instead of one after another: the database is a network hop away.
+ */
+async function loadProjectDataUncached(projectId: string): Promise<PortfolioProject | null> {
+  const [projectRes, pm, members, taskRes] = await Promise.all([
+    db().from('projects').select('*').eq('id', projectId).maybeSingle(),
+    db().from('project_members').select('member_id').eq('project_id', projectId),
+    db().from('members').select('id, name, role').order('name'),
+    db().from('tasks').select(TASK_COLUMNS).eq('project_id', projectId).order('sort_order'),
+  ]);
   if (projectRes.error) throw new Error(projectRes.error.message);
   if (!projectRes.data) return null;
   const project = mapProject(projectRes.data as ProjectRow);
+  const memberIds = must<{ member_id: string }[]>(pm).map((r) => r.member_id);
+  const memberList = must<MemberRow[]>(members).map(mapMember);
+  const taskRows = must<TaskRow[]>(taskRes);
 
-  const pm = must<{ member_id: string }[]>(
-    await db().from('project_members').select('member_id').eq('project_id', projectId),
-  );
-  const memberIds = pm.map((r) => r.member_id);
-
-  const members = must<MemberRow[]>(await db().from('members').select('id, name, role').order('name')).map(mapMember);
-
-  const taskRows = must<TaskRow[]>(
-    await db().from('tasks').select(TASK_COLUMNS).eq('project_id', projectId).order('sort_order'),
-  );
   const taskIds = taskRows.map((t) => t.id);
-  const outRows = taskIds.length
-    ? must<OutputRow[]>(await db().from('task_outputs').select('*').in('task_id', taskIds).order('added_at'))
-    : [];
+  const [outRes, issueRes] = taskIds.length
+    ? await Promise.all([
+        db().from('task_outputs').select('*').in('task_id', taskIds).order('added_at'),
+        db().from('task_issues').select('*').in('task_id', taskIds).order('created_at'),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }];
   const outputsByTask = new Map<string, TaskOutput[]>();
-  for (const o of outRows) {
+  for (const o of must<OutputRow[]>(outRes)) {
     const list = outputsByTask.get(o.task_id) ?? [];
     list.push(mapOutput(o));
     outputsByTask.set(o.task_id, list);
   }
-  const issueRows = taskIds.length
-    ? must<IssueRow[]>(await db().from('task_issues').select('*').in('task_id', taskIds).order('created_at'))
-    : [];
-  const issuesByTask = groupIssues(issueRows);
+  const issuesByTask = groupIssues(must<IssueRow[]>(issueRes));
   const tasks = taskRows.map((t) => mapTask(t, outputsByTask.get(t.id) ?? [], issuesByTask.get(t.id) ?? []));
 
-  return { project, members, tasks, memberIds };
+  return { project, members: memberList, tasks, memberIds };
 }
+export const loadProjectData = cache(loadProjectDataUncached);
 
 /** Lightweight portfolio: all projects (with members and tasks, no outputs). Used by lists, alerts, team. */
 export interface Portfolio {
@@ -131,7 +137,7 @@ export interface Portfolio {
   tasksByProject: Map<string, Task[]>;
 }
 
-export async function loadPortfolio(): Promise<Portfolio> {
+async function loadPortfolioUncached(): Promise<Portfolio> {
   const [memberRows, projectRows, pmRows, taskRows] = await Promise.all([
     db().from('members').select('id, name, role').order('name'),
     db().from('projects').select('*').order('created_at'),
@@ -159,6 +165,8 @@ export async function loadPortfolio(): Promise<Portfolio> {
   }
   return { members, projects, tasksByProject };
 }
+
+export const loadPortfolio = cache(loadPortfolioUncached);
 
 /* ---------------- Health with cached simulation (7.4) ---------------- */
 

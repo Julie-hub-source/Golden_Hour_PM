@@ -43,7 +43,7 @@ export default async function ProjectsPage() {
           return (
             <article key={p.id} className="card">
               <div className="spread" style={{ marginBottom: 8 }}>
-                <Link href={`/projects/${p.id}`} className="card-link">
+                <Link href={`/projects/${p.id}/dashboard`} className="card-link">
                   <h3 style={{ fontSize: 15 }}>{p.name}</h3>
                 </Link>
                 {isMember ? <span className="pill">Member</span> : <span className="pill muted">Not a member</span>}

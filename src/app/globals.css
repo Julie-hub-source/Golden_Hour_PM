@@ -314,3 +314,76 @@ fieldset legend { font-size: 12px; color: var(--muted); padding: 0 4px; }
 }
 .seg.done { opacity: .9; }
 .flames { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+
+/* Health KPI boxes, one colour each */
+.kpi.tone-blue { background: #eef3ff; border-color: #3b6cf6; border-left-width: 5px; }
+.kpi.tone-purple { background: #f4efff; border-color: #8b5cf6; border-left-width: 5px; }
+.kpi.tone-amber { background: #fff7e6; border-color: #f5a524; border-left-width: 5px; }
+.kpi.tone-green { background: #ecf8f1; border-color: #2fa36b; border-left-width: 5px; }
+
+/* Environment timeline header: one colour per environment */
+th.env-head { border-top: 3px solid var(--border); text-align: center; }
+th.env-head.tone-blue { background: #eef3ff; border-top-color: #3b6cf6; color: #1e3a8a; }
+th.env-head.tone-purple { background: #f4efff; border-top-color: #8b5cf6; color: #4c1d95; }
+th.env-head.tone-green { background: #ecf8f1; border-top-color: #2fa36b; color: #14532d; }
+
+/* Workload table */
+table.workload td { vertical-align: middle; }
+.role-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.bar-cell { display: flex; align-items: center; gap: 10px; }
+.bar-track { flex: 1; min-width: 120px; height: 8px; background: #eef0f4; border-radius: 4px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; border-radius: 4px; }
+.bar-num { font-weight: 600; min-width: 24px; text-align: right; }
+
+/* ---- Colour system shared by the dashboard, task board and settings ---- */
+
+/* Card accents: a coloured left edge and matching heading colour */
+.card.accent-blue, .section.accent-blue { border-left: 4px solid #3b6cf6; }
+.card.accent-purple, .section.accent-purple { border-left: 4px solid #8b5cf6; }
+.card.accent-amber, .section.accent-amber { border-left: 4px solid #f5a524; }
+.card.accent-green, .section.accent-green { border-left: 4px solid #2fa36b; }
+.section.accent-teal { border-left: 4px solid #0d9488; }
+.kpi.tone-red { background: #fdeeee; border-color: #e5484d; border-left-width: 5px; }
+.kpi.tone-red .value { color: #b42318; }
+
+/* Task board: column header colour per status */
+.col { border-top: 3px solid #d1d5db; }
+.col.s-todo { border-top-color: #9ca3af; }
+.col.s-in_progress { border-top-color: #3b6cf6; }
+.col.s-uat { border-top-color: #8b5cf6; }
+.col.s-stg { border-top-color: #8b5cf6; }
+.col.s-prod { border-top-color: #f5a524; }
+.col.s-closed { border-top-color: #2fa36b; }
+.col.s-in_progress .colh { color: #1e40af; }
+.col.s-uat .colh, .col.s-stg .colh { color: #4c1d95; }
+.col.s-prod .colh { color: #92590a; }
+.col.s-closed .colh { color: #14532d; }
+
+/* Environment tags on task cards, same colours as the environment timeline */
+.env-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; }
+.env-tag.env-uat { background: #3b6cf6; }
+.env-tag.env-stg { background: #8b5cf6; }
+.env-tag.env-prod { background: #2fa36b; }
+
+/* Priority levels */
+.lvl { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.lvl-late { background: #E24B4A; color: #fff; }
+.lvl-highest { background: #fde3e3; color: #b42318; }
+.lvl-high { background: #fef3d7; color: #92590a; }
+.lvl-medium { background: #e0e8ff; color: #2b4fc7; }
+.lvl-low { background: #dcf5e8; color: #166c44; }
+
+/* Priority guide and status colours (same colours as the task board columns) */
+.prio-guide ul { margin: 0 0 14px; padding-left: 18px; line-height: 1.7; }
+.st-pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.st-pill.s-todo { background: #eef0f4; color: #4b5563; }
+.st-pill.s-in_progress { background: #e3ecff; color: #1e40af; }
+.st-pill.s-uat, .st-pill.s-stg { background: #f1eaff; color: #4c1d95; }
+.st-pill.s-prod { background: #fef3d7; color: #92590a; }
+.st-pill.s-closed { background: #dcf5e8; color: #14532d; }
+tr.prio-row td:first-child { box-shadow: inset 4px 0 0 var(--line); }
+tr.prio-row.s-todo td:first-child { box-shadow: inset 4px 0 0 #9ca3af; }
+tr.prio-row.s-in_progress td:first-child { box-shadow: inset 4px 0 0 #3b6cf6; }
+tr.prio-row.s-uat td:first-child, tr.prio-row.s-stg td:first-child { box-shadow: inset 4px 0 0 #8b5cf6; }
+tr.prio-row.s-prod td:first-child { box-shadow: inset 4px 0 0 #f5a524; }
+tr.prio-row.s-closed td:first-child { box-shadow: inset 4px 0 0 #2fa36b; }

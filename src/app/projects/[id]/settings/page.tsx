@@ -16,6 +16,7 @@ import {
   setProjectDescription,
   addProjectMember,
   removeProjectMember,
+  deleteProject,
 } from '@/app/actions';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +27,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
   const data = await loadProjectData(id);
   if (!data) notFound();
   const { project, members, memberIds } = data;
-  const scope = { projectMemberIds: new Set(memberIds) };
+  const scope = { projectMemberIds: new Set(memberIds), taskDeleteLocked: project.taskDeleteLocked };
   const allowed = (a: Parameters<typeof can>[1]) => can(actor, a, scope).ok;
 
   const projectMembers = members.filter((m) => memberIds.includes(m.id));
@@ -38,7 +39,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
       <ProjectNav projectId={id} name={project.name} active="settings" />
       <div className="two-col">
         <div>
-          <div className="section">
+          <div className="section accent-blue">
             <h2>Project dates and priority</h2>
             <p className="small muted" style={{ marginBottom: 10 }}>
               Changing the start date moves every task deadline by the same number of calendar days. Client commit dates keep their dates.
@@ -65,7 +66,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
 
-          <div className="section">
+          <div className="section accent-purple">
             <h2>Client commitments</h2>
             <ActionForm action={setProjectCommits} submitLabel="Save commits" hidden={{ projectId: id }}>
               <fieldset disabled={!allowed('project.setCommit')} style={{ border: 0, padding: 0, margin: 0 }}>
@@ -87,7 +88,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
             </ActionForm>
           </div>
 
-          <div className="section">
+          <div className="section accent-teal">
             <h2>Description</h2>
             <ActionForm action={setProjectDescription} submitLabel="Save description" hidden={{ projectId: id }}>
               <fieldset disabled={!allowed('project.setDescription')} style={{ border: 0, padding: 0, margin: 0 }}>
@@ -109,7 +110,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
         </div>
 
         <div>
-          <div className="section">
+          <div className="section accent-green">
             <h2>Members ({projectMembers.length})</h2>
             <table>
               <thead>
@@ -154,6 +155,29 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
             {!canPm && <p className="small muted">Only PM can add or remove members.</p>}
           </div>
         </div>
+
+        {project.taskDeleteLocked && (
+          <div className="section">
+            <h2>Delete project</h2>
+            <p className="small muted">
+              This project is locked, so it cannot be deleted. Projects you create later can be deleted.
+            </p>
+          </div>
+        )}
+        {!project.taskDeleteLocked && allowed('project.delete') && (
+          <div className="section" style={{ borderColor: '#f5c2c4' }}>
+            <h2>Delete project</h2>
+            <p className="small muted" style={{ marginBottom: 10 }}>
+              Deletes this project with all its tasks, links, struggles and notifications. This cannot be undone. Members are notified first.
+            </p>
+            <ActionForm action={deleteProject} submitLabel="Delete project" danger hidden={{ projectId: id }} confirm={`Delete "${project.name}" permanently?`}>
+              <label className="field">
+                Type the project name to confirm: <b>{project.name}</b>
+                <input type="text" name="confirmName" required autoComplete="off" />
+              </label>
+            </ActionForm>
+          </div>
+        )}
       </div>
     </>
   );

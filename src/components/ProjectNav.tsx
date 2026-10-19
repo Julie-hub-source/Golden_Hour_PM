@@ -2,9 +2,9 @@ import Link from 'next/link';
 
 export function ProjectNav({ projectId, name, active }: { projectId: string; name: string; active: 'board' | 'dashboard' | 'settings' }) {
   const tabs = [
-    { key: 'board', label: 'Board', href: `/projects/${projectId}` },
     { key: 'dashboard', label: 'Dashboard and Estimation', href: `/projects/${projectId}/dashboard` },
-    { key: 'settings', label: 'Settings & team', href: `/projects/${projectId}/settings` },
+    { key: 'board', label: 'Task Board', href: `/projects/${projectId}` },
+    { key: 'settings', label: 'Settings', href: `/projects/${projectId}/settings` },
   ] as const;
   return (
     <>

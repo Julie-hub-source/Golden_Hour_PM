@@ -37,6 +37,7 @@ Global roles: `PM`, `PO`, `BA`, `Designer`, `FE`, `BE`, `QC`. A member can belon
 | Edit client commit dates (UAT / STG / Prod) | ✅ | ✅ | ❌ |
 | Edit project description (context, client info, documents) | ✅ | ✅ | ❌ |
 | Add / remove members of a project | ✅ | ❌ | ❌ |
+| Delete project | ✅ | ❌ | ❌ |
 | Create / delete task | ✅ | ✅ | ❌ |
 | Rename task, edit task deadline | ✅ | ✅ | ❌ |
 | Edit depends on (task dependencies) | ✅ | ✅ | ❌ |
@@ -46,6 +47,8 @@ Global roles: `PM`, `PO`, `BA`, `Designer`, `FE`, `BE`, `QC`. A member can belon
 | Edit task description | ✅ | ✅ | Only tasks where they are PIC |
 | Add output link on a task | ✅ | ✅ | Only tasks where they are PIC |
 | Add a struggle, or mark it solved | ✅ | ✅ | Only tasks where they are PIC |
+
+A project can be locked against deletion (projects.task_delete_locked, migration 004). A locked project cannot have its tasks deleted, and the project itself cannot be deleted; Settings shows a note instead of the delete button. Locking applies to everyone, including PM. The demo project is locked; projects created later are not.
 
 Notes:
 - Permissions are enforced on the server as well as in the UI.
@@ -209,7 +212,7 @@ Used for: the environment timeline table and the client commitment comparison.
 - Row "0) Start": start of the environment in the happy case (planned start if finished).
 - Row "1) Task completion (projected)": happy-case completion (planned completion if finished).
 - Row "Late (working days)": total late working days of the open tasks in that environment, shown as +N (section 7.6). Late days are added to the environment the task belongs to: its completion moves by the same number, and every following environment moves by the same number.
-- Row "2) Client commitment": editable date per environment (PM/PO).
+- Row "2) Client commitment": editable date per environment (PM/PO). Saved automatically: picking a day in the calendar, or typing a valid date and leaving the field, saves it. There is no Save button.
 - Dates in these rows use the app date format (see section 14).
 - Row "Buffer": commit minus completion, in working days. Green if buffer, red if late. Shown for finished environments too.
 
@@ -237,8 +240,8 @@ Used for: the environment timeline table and the client commitment comparison.
 - Card per project: name, priority dropdown (PM edits), start date (PM edits), complete date (7.3), client commit (Prod), member count, task count, progress (closed / total).
 - Clicking a card opens the project board.
 
-### 10.2 Task board
-- Project description panel (collapsible): Context, Client info, Related documents (one per line, "Name | link").
+### 10.2 Task Board
+- The project description panel is not on the Task Board. It moved to the top of Dashboard and Estimation (Health tab).
 - Filters: PIC, environment (only environments present in the project), status. Combined with AND.
 - Six status columns. Card shows code, name, environment, phase, unfinished dependencies, deadline, PIC dropdown, duration dropdown, status dropdown, and a 🔥 for each struggle.
 - Clicking a card opens the task detail popup.
@@ -260,7 +263,7 @@ In order:
 Buttons: Delete (PM/PO), Create (drafts only).
 
 ### 10.4 Dashboard and Estimation (tabs)
-- **Health & workload**: banner (state, projected Prod completion vs commit, late probability); four key figures shown as boxes in a row: projected Prod completion (happy case), client commitment (Prod), buffer (working days between commitment and projection, positive = spare, negative = late, 0 = right at the deadline), and progress (Closed tasks / total, with %). Labels are in English; environment timeline (section 8); workload by person across all projects (name, role, projects, open tasks). The simulated Prod completion histogram is not shown. The simulation still runs for the late probability and the P50/P80 range.
+- **Health & workload**: project description panel first (collapsible: Context, Client info, Related documents, one per line "Name | link"), then banner (state, projected Prod completion vs commit, late probability); four key figures shown as boxes in a row: projected Prod completion (happy case), client commitment (Prod), buffer (working days between commitment and projection, positive = spare, negative = late, 0 = right at the deadline), and progress (Closed tasks / total, with %). Labels are in English; environment timeline (section 8); workload by person across all projects (name, role, projects, open tasks). The simulated Prod completion histogram is not shown. The simulation still runs for the late probability and the P50/P80 range.
 - **Task timeline**: section 9.
 - **What-if**: pick an open task and an extra delay of 0–10 working days. Shows new projected finish, added delay, buffer or lateness vs Prod commit, and the list of pushed-back tasks.
 - **Priority**: section 11.

@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   try {
-    const result = await runDueAlerts();
+    const result = await runDueAlerts(undefined, { force: true });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     console.error(e);

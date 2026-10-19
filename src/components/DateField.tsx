@@ -17,13 +17,17 @@ export function DateField({
   defaultValue,
   disabled,
   required,
+  onCommit,
 }: {
   name: string;
   defaultValue?: string | null;
   disabled?: boolean;
   required?: boolean;
+  /** Called with the date text once a valid date is picked or typed and the field is left. */
+  onCommit?: (value: string) => void;
 }) {
   const [value, setValue] = useState(defaultValue ?? '');
+  const lastSent = useRef(defaultValue ?? '');
   const [open, setOpen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const wrap = useRef<HTMLSpanElement>(null);
@@ -75,8 +79,21 @@ export function DateField({
     setView(`${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`);
   };
   const pick = (day: string) => {
-    setValue(formatDate(day));
+    const text = formatDate(day);
+    setValue(text);
     setOpen(false);
+    if (onCommit && text !== lastSent.current) {
+      lastSent.current = text;
+      onCommit(text);
+    }
+  };
+  // Typed text is committed when the field is left, if it is a valid date that changed
+  const leave = () => {
+    const text = value.trim();
+    if (onCommit && !disabled && parseDateInput(text) !== null && text !== lastSent.current) {
+      lastSent.current = text;
+      onCommit(text);
+    }
   };
   const today = todayIso();
   const monthLabel = first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -90,6 +107,10 @@ export function DateField({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onFocus={() => !disabled && show()}
+        onBlur={leave}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+        }}
         onClick={() => !disabled && !open && show()}
         placeholder="D/M/YYYY"
         required={required}
