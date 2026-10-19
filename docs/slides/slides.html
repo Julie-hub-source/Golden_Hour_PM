@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Golden Hour - Product Walkthrough</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap">
+<style>
+  @page { size: 1920px 1080px; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  section { position: relative; width: 1920px; height: 1080px; box-sizing: border-box; overflow: hidden; page-break-after: always; break-after: page; }
+  section:last-child { page-break-after: auto; break-after: auto; }
+</style></head><body>
+<section id="s01_intro" data-transition="fade" style="background:#0F172A;color:#FFFFFF;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;justify-content:center;gap:32px">
+<p style="font-size:28px;font-weight:700;color:#7CF0A8;letter-spacing:3px">THE EARLY WARNING SYSTEM · PROJECT MANAGEMENT</p>
+<h1 style="font-size:168px;font-weight:700;line-height:1">Golden Hour</h1>
+<p style="font-size:48px;font-weight:600;color:#E2E8F0">Early warning for project delivery</p>
+<p style="font-size:32px;color:#94A3B8;width:1300px;line-height:1.4">See where a project is heading against the client's commitment, which tasks are stuck, and what to fix first.</p>
+</section>
+<section id="s02_what" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">WHAT IT IS</p>
+<h2 style="font-size:72px;font-weight:700;line-height:1.1">One screen answers three questions</h2>
+<div style="display:flex;gap:40px">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:48px;border:1px solid #E3E6EA;border-radius:20px">
+<h3 style="font-size:44px;font-weight:700;color:#3B6CF6">1 · Where is it heading?</h3>
+<p style="font-size:30px;line-height:1.4">Projected Prod completion against the date promised to the client, with the buffer in working days.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:48px;border:1px solid #E3E6EA;border-radius:20px">
+<h3 style="font-size:44px;font-weight:700;color:#E5484D">2 · What is stuck?</h3>
+<p style="font-size:30px;line-height:1.4">Late tasks and struggles: things outside the team's control that hold a task up, shown as 🔥.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:48px;border:1px solid #E3E6EA;border-radius:20px">
+<h3 style="font-size:44px;font-weight:700;color:#2FA36B">3 · What to fix first?</h3>
+<p style="font-size:30px;line-height:1.4">A ranked priority list that tells the team which task to look at first, and why.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#5B6472">Golden Hour · early warning for project delivery</p>
+</section>
+<section id="s03_problem" data-transition="fade" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;justify-content:center;gap:40px">
+<p style="font-size:24px;font-weight:700;color:#E5484D;letter-spacing:2px">THE PROBLEM</p>
+<h2 style="font-size:88px;font-weight:700;line-height:1.1;width:1500px">Projects slip one stuck task at a time.</h2>
+<p style="font-size:40px;line-height:1.5;width:1400px;color:#3D4654">Managers usually learn about it at the deadline, when there is no time left to react. Golden Hour makes the slip visible weeks earlier.</p>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#5B6472">Golden Hour · early warning for project delivery</p>
+</section>
+<section id="s04_links" data-transition="push" style="background:#0F172A;color:#FFFFFF;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<p style="font-size:24px;font-weight:700;color:#7CF0A8;letter-spacing:2px">LINKS</p>
+<h2 style="font-size:72px;font-weight:700;line-height:1.1">Try it and read the code</h2>
+<div style="display:flex;gap:40px">
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#1E293B;padding:56px;border-radius:20px">
+<h3 style="font-size:40px;font-weight:700;color:#7CF0A8">Live web app</h3>
+<p style="font-size:36px;font-weight:600;color:#FFFFFF">golden-hour-pm.vercel.app</p>
+<p style="font-size:28px;line-height:1.4;color:#CBD5E1">Open it in any browser. No login: switch the "Signed in as" menu to act as any team member.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#1E293B;padding:56px;border-radius:20px">
+<h3 style="font-size:40px;font-weight:700;color:#7CF0A8">GitHub repository</h3>
+<p style="font-size:36px;font-weight:600;color:#FFFFFF">github.com/Julie-hub-source/Golden_Hour_PM</p>
+<p style="font-size:28px;line-height:1.4;color:#CBD5E1">Next.js, TypeScript, Supabase. The README has the setup steps; CLAUDE.md holds the business rules.</p>
+</div>
+</div>
+</section>
+<section id="s05_howto" data-transition="fade" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">HOW TO USE IT</p>
+<h2 style="font-size:72px;font-weight:700;line-height:1.1">No login: act as any team member</h2>
+<div style="display:flex;gap:40px">
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFFFF;padding:48px;border:1px solid #E3E6EA;border-radius:20px">
+<h3 style="font-size:40px;font-weight:700">1. Pick a member</h3>
+<p style="font-size:30px;line-height:1.4">Use the <b>Signed in as</b> menu at the top right. It lists every team member with their role, for example Alex.PM or Ben.PO.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFFFF;padding:48px;border:1px solid #E3E6EA;border-radius:20px">
+<h3 style="font-size:40px;font-weight:700">2. Check what they can do</h3>
+<p style="font-size:30px;line-height:1.4">The buttons change with the role. PM and PO can edit the plan. Other members can change only the tasks they own.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:20px;background:#FFFFFF;padding:48px;border:1px solid #E3E6EA;border-radius:20px">
+<h3 style="font-size:40px;font-weight:700">3. Switch and compare</h3>
+<p style="font-size:30px;line-height:1.4">Switch to another member and repeat the step. There is no real security yet, so use this for testing and review.</p>
+</div>
+</div>
+</section>
+<section id="s06_flow" data-transition="fade" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">END-TO-END FLOW</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1">From a new project to a decision, in six steps</h2>
+<div style="display:flex;gap:24px;align-items:stretch">
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:32px;border:1px solid #E3E6EA;border-radius:16px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6">1</p>
+<h3 style="font-size:32px;font-weight:700">Create project</h3>
+<p style="font-size:24px;line-height:1.4;color:#3D4654">Name, start date, Prod commitment. A 35-task flow is created.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:32px;border:1px solid #E3E6EA;border-radius:16px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6">2</p>
+<h3 style="font-size:32px;font-weight:700">Assign owners</h3>
+<p style="font-size:24px;line-height:1.4;color:#3D4654">Each task gets the member with the matching role. Owners can change.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:32px;border:1px solid #E3E6EA;border-radius:16px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6">3</p>
+<h3 style="font-size:32px;font-weight:700">Work the board</h3>
+<p style="font-size:24px;line-height:1.4;color:#3D4654">Owners move tasks through statuses and add struggles when they are stuck.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:32px;border:1px solid #E3E6EA;border-radius:16px">
+<p style="font-size:24px;font-weight:700;color:#E5484D">4</p>
+<h3 style="font-size:32px;font-weight:700">Read the dashboard</h3>
+<p style="font-size:24px;line-height:1.4;color:#3D4654">Key figures, late tasks, the Gantt chart and the dependency tree show the impact.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:32px;border:1px solid #E3E6EA;border-radius:16px">
+<p style="font-size:24px;font-weight:700;color:#E5484D">5</p>
+<h3 style="font-size:32px;font-weight:700">Test a scenario</h3>
+<p style="font-size:24px;line-height:1.4;color:#3D4654">What-if adds delay to one task. Priority ranks what to fix first.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:32px;border:1px solid #E3E6EA;border-radius:16px">
+<p style="font-size:24px;font-weight:700;color:#2FA36B">6</p>
+<h3 style="font-size:32px;font-weight:700">Solve and update</h3>
+<p style="font-size:24px;line-height:1.4;color:#3D4654">Solve a struggle, update dates and commitments. The numbers update at once.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#5B6472">Each step is shown on the following slides.</p>
+</section>
+<section id="s07_projects" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;gap:64px;align-items:center">
+<div style="width:560px;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">1 · PROJECTS</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1">Pick a project</h2>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">Each card shows the complete date, the client's Prod commitment, the member count and progress.</p>
+<p style="font-size:26px;line-height:1.45;color:#3D4654">PM can change the priority directly on the card. The start date is set in Settings.</p>
+</div>
+<img src="screenshots/01_projects.png" alt="Projects list with project cards" style="width:1000px;height:586px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+</section>
+<section id="s08_dashboard" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;gap:64px;align-items:center">
+<div style="width:560px;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">2 · DASHBOARD AND ESTIMATION</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1">Start with the four key numbers</h2>
+<p style="font-size:28px;line-height:1.45;color:#3D4654"><b>Projected Prod completion</b>: when the work is expected to finish.</p>
+<p style="font-size:28px;line-height:1.45;color:#3D4654"><b>Client commitment</b>: the date promised to the client.</p>
+<p style="font-size:28px;line-height:1.45;color:#3D4654"><b>Buffer</b>: working days to spare. Negative means late.</p>
+<p style="font-size:28px;line-height:1.45;color:#3D4654"><b>Progress</b>: closed tasks out of the total.</p>
+</div>
+<img src="screenshots/02_dashboard_top.png" alt="Dashboard header and key figures" style="width:1000px;height:586px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+</section>
+<section id="s09_envs" data-transition="push" style="background:#fbfbf8">
+  <p id="pfe7746fd2fe5r0-5794c6f8" style="position:absolute; top:128px; left:128px; width:1664px; font-family:'DM Sans', Arial, sans-serif; font-size:24px; font-weight:700; letter-spacing:2px; color:#3b6cf6">2 · DASHBOARD (CONTINUED)</p>
+  <h2 id="pfe7746fd2fe5r1-5794c6f8" style="position:absolute; top:186px; left:128px; width:1664px; font-family:'DM Sans', Arial, sans-serif; font-size:60px; font-weight:700; line-height:1.1; color:#1d2330">Each environment has its own timeline and buffer</h2>
+  <div id="pfe7746fd2fe5r2-5794c6f8" style="position:absolute; top:269px; left:128px; width:1664px; height:372px; display:flex; flex-direction:row; gap:32px">
+    <img src="screenshots/03_environment_timeline.png" alt="Environment timeline table for UAT, STG and Prod" style="width:1040px; height:480px; background:#e5e7eb; border:1px solid #d1d5db; border-radius:16px; object-fit:contain">
+    <div style="width:592px; display:flex; flex-direction:column; gap:20px">
+      <p style="font-family:'DM Sans', Arial, sans-serif; font-size:28px; line-height:1.4; color:#3d4654"><b>Start and completion</b> for UAT, STG and Prod.</p>
+      <p style="font-family:'DM Sans', Arial, sans-serif; font-size:28px; line-height:1.4; color:#3d4654"><b>Late</b>: total late working days of the open tasks in that environment.</p>
+      <p style="font-family:'DM Sans', Arial, sans-serif; font-size:28px; line-height:1.4; color:#3d4654"><b>Client commitment</b>: change the date and it saves at once.</p>
+      <p style="font-family:'DM Sans', Arial, sans-serif; font-size:28px; line-height:1.4; color:#3d4654"><b>Buffer</b>: green when there is time to spare, red when late.</p>
+    </div>
+  </div>
+  <div id="pfe7746fd2fe5r3-5794c6f8" style="position:absolute; top:673px; left:128px; width:1664px; height:279px; display:flex; flex-direction:row; gap:32px">
+    <img src="screenshots/04_workload.png" alt="Workload by person table" style="width:716px; height:399px; flex:0 0 auto; background:#e5e7eb; border:1px solid #d1d5db; border-radius:16px; object-fit:contain">
+  </div>
+  <p id="pfe7746fd2fe5r3_1-5794c6f8" style="position:absolute; top:673px; left:1193.88px; width:566.12px; font-family:'DM Sans', Arial, sans-serif; font-size:28px; line-height:1.4; color:#3d4654">The <b>workload</b> table lists each person across all projects: their role, how many projects they are in, and how many tasks are still open.</p>
+</section>
+<section id="s10_gantt" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:32px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">3 · TASK TIMELINE (GANTT)</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">Who works on what, and when</h2>
+<img src="screenshots/05_gantt.png" alt="Task timeline with one lane per person" style="width:1664px;height:520px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+<div style="display:flex;gap:40px">
+<p style="flex:1;font-size:26px;line-height:1.4;color:#3D4654"><b>One lane per person.</b> Red stripes mark the part of a task after its deadline. A red <b>Late</b> tag means overdue and already started.</p>
+<p style="flex:1;font-size:26px;line-height:1.4;color:#3D4654"><b>Blue line</b> is today. <b>Dashed red line</b> is the client commitment. Amber outline means the task is on the critical path.</p>
+<p style="flex:1;font-size:26px;line-height:1.4;color:#3D4654"><b>🔥</b> marks a struggle. Click any bar to open the task.</p>
+</div>
+</section>
+<section id="s11_tree" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:32px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">3 · DEPENDENCY TREE</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">How tasks depend on each other</h2>
+<img src="screenshots/06_dependency_tree.png" alt="Dependency tree from left to right" style="width:1664px;height:560px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+<div style="display:flex;gap:40px">
+<p style="flex:1;font-size:26px;line-height:1.4;color:#3D4654"><b>Read left to right.</b> A task sits one column to the right of the tasks it depends on. Tasks in the same column run in parallel.</p>
+<p style="flex:1;font-size:26px;line-height:1.4;color:#3D4654"><b>Late tasks</b> are shaded red with a "Late +N wd" label. <b>Blocked tasks</b> have a red border.</p>
+<p style="flex:1;font-size:26px;line-height:1.4;color:#3D4654"><b>🔥</b> is a struggle. A crossed flame is solved.</p>
+</div>
+</section>
+<section id="s12_whatif" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;gap:64px;align-items:center">
+<div style="width:560px;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">4 · WHAT-IF</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1">What if a task slips?</h2>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">Pick an open task and add 0 to 10 working days of delay.</p>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">See the new finish date, the buffer against the commitment, and the list of tasks that get pushed back.</p>
+</div>
+<img src="screenshots/07_what_if.png" alt="What-if scenario result" style="width:1000px;height:586px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+</section>
+<section id="s13_priority" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:32px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">4 · PRIORITY</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">What to fix first</h2>
+<div style="display:flex;gap:40px">
+<img src="screenshots/08_priority.png" alt="Priority list with levels and suggested actions" style="width:1000px;height:560px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+<div style="flex:1;display:flex;flex-direction:column;gap:18px">
+<p style="font-size:28px;line-height:1.4"><b>Late</b>: deadline passed. Always the top.</p>
+<p style="font-size:28px;line-height:1.4"><b>Highest</b>: overdue, or planned for today.</p>
+<p style="font-size:28px;line-height:1.4"><b>High</b>: starts in 1 to 3 working days.</p>
+<p style="font-size:28px;line-height:1.4"><b>Medium</b>: 4 to 5 working days. <b>Low</b>: more than 5.</p>
+<p style="font-size:28px;line-height:1.4">More than 2 open struggles moves a task up one level.</p>
+</div>
+</div>
+</section>
+<section id="s14_board" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;gap:64px;align-items:center">
+<div style="width:560px;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">5 · TASK BOARD</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1">Every task in its status column</h2>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">Six columns, from To do to Closed. Use the filters for PIC, environment and status.</p>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">Each card shows its environment, deadline, dependencies, owner and one 🔥 per struggle.</p>
+</div>
+<img src="screenshots/09_task_board.png" alt="Task board with six status columns" style="width:1000px;height:586px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+</section>
+<section id="s15_detail" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;gap:64px;align-items:center">
+<div style="width:560px;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">6 · TASK DETAIL</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1">Struggles, dependencies and schedule</h2>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">Open a task to see its owner, duration, deadline, projected dates and slack.</p>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">Add a struggle with a reason, then mark it solved. Add output links such as the PRD or test evidence.</p>
+</div>
+<img src="screenshots/10_task_detail.png" alt="Task detail popup with schedule and dependencies" style="width:1000px;height:586px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+</section>
+<section id="s16_settings" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;gap:64px;align-items:center">
+<div style="width:560px;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">7 · SETTINGS</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1">Dates, commitments and members</h2>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">Change the start date, priority, commitments and project description.</p>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">PM adds or removes members, and can delete a project. A locked project shows a note instead of the delete button.</p>
+</div>
+<img src="screenshots/11_settings.png" alt="Settings page with the locked-project note" style="width:1000px;height:586px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+</section>
+<section id="s17_team" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;gap:64px;align-items:center">
+<div style="width:560px;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">8 · TEAM AND NOTIFICATIONS</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1">Everyone's open work, in one place</h2>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">The Team page lists every member, their role, their projects and open tasks.</p>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">Changes to your projects appear in Notifications, with the bell and unread count in the header.</p>
+</div>
+<img src="screenshots/12_team.png" alt="Team table with open tasks per member" style="width:1000px;height:586px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+</section>
+<section id="s18_new_project" data-transition="push" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;gap:64px;align-items:center">
+<div style="width:560px;display:flex;flex-direction:column;gap:28px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">9 · CREATE A PROJECT</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1">Start a new project in one form</h2>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">Enter the name, start date, Prod commitment and the team. Dates use the calendar picker or D/M/YYYY.</p>
+<p style="font-size:30px;line-height:1.45;color:#3D4654">The default 35-task flow is created, with owners chosen by role and deadlines from the plan.</p>
+</div>
+<img src="screenshots/14_new_project.png" alt="New project form" style="width:1000px;height:586px;object-fit:contain;background:#E5E7EB;border:1px solid #D1D5DB;border-radius:16px">
+</section>
+<section id="s19_rules" data-transition="fade" style="background:#FBFBF8;color:#1D2330;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;gap:48px">
+<p style="font-size:24px;font-weight:700;color:#3B6CF6;letter-spacing:2px">RULES AT A GLANCE</p>
+<h2 style="font-size:64px;font-weight:700;line-height:1.1">What the colours and words mean</h2>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:40px;border:1px solid #E3E6EA;border-radius:16px">
+<h3 style="font-size:36px;font-weight:700;color:#E5484D">Late</h3>
+<p style="font-size:28px;line-height:1.4">Open, started, and the deadline is before today. Working days late are counted from the deadline to today.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:40px;border:1px solid #E3E6EA;border-radius:16px">
+<h3 style="font-size:36px;font-weight:700;color:#3B6CF6">Depends on</h3>
+<p style="font-size:28px;line-height:1.4">A task that must finish first. A task that has not started is pushed back, not marked late.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:40px;border:1px solid #E3E6EA;border-radius:16px">
+<h3 style="font-size:36px;font-weight:700;color:#F5A524">🔥 Struggle</h3>
+<p style="font-size:28px;line-height:1.4">Something outside the team's control that holds a task up. Solve it and the flame is crossed out.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:40px;border:1px solid #E3E6EA;border-radius:16px">
+<h3 style="font-size:36px;font-weight:700;color:#2FA36B">Buffer</h3>
+<p style="font-size:28px;line-height:1.4">Working days between the client's commitment and the projected finish. Negative means late.</p>
+</div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#5B6472">All dates use one format: weekday, then day/month/year, for example Tue 1/1/2027.</p>
+</section>
+<section id="s20_end" data-transition="fade" style="background:#0F172A;color:#FFFFFF;font-family:'DM Sans', Arial, sans-serif;padding:128px;display:flex;flex-direction:column;justify-content:center;gap:40px">
+<p style="font-size:28px;font-weight:700;color:#7CF0A8;letter-spacing:3px">THANK YOU</p>
+<h2 style="font-size:120px;font-weight:700;line-height:1.05">Golden Hour</h2>
+<p style="font-size:40px;color:#E2E8F0;line-height:1.5">Live app: golden-hour-pm.vercel.app</p>
+<p style="font-size:40px;color:#E2E8F0;line-height:1.5">Code: github.com/Julie-hub-source/Golden_Hour_PM</p>
+<p style="font-size:28px;color:#94A3B8">No login. Use "Signed in as" to test as any team member.</p>
+</section>
+</body></html>

@@ -4,6 +4,8 @@
 
 **Try it:** https://golden-hour-pm.vercel.app/
 
+**Slides:** [Golden Hour walkthrough (Google Drive)](https://drive.google.com/file/d/1GIioVXvIGZQnRBGiSX-N0d4D8qqeCaUZ/view?usp=sharing) · also in the repo as [GOLDEN_HOUR_SLIDES.pdf](GOLDEN_HOUR_SLIDES.pdf).
+
 The app is a shared demo. There is no login: use the **Signed in as** menu at the top right to act as any team member. Permissions still apply to whichever member you pick, so you can see what each role is allowed to do.
 
 ---
@@ -144,6 +146,20 @@ Permissions are checked on the server, so they hold even if a control is hidden 
 
 ---
 
+## Business rules: CLAUDE.md
+
+The full business rules are in [CLAUDE.md](CLAUDE.md). This README explains how to use the app; CLAUDE.md is the specification the code follows. Read it when you need the exact rule. It also covers things this README does not:
+
+- The default 35-task flow, step by step, with roles and durations (section 5).
+- The task data model: fields, allowed values and validation rules (sections 6 and 13).
+- The scheduling formulas: dependency schedule, early and late finish, slack, critical path, complete date (section 7).
+- The Monte Carlo settings for the late probability: 1,500 runs and the triangular ranges (section 7.4).
+- The late-task rules and how a late task moves its successors (section 7.6).
+- Each alert and its exact message, and who receives it (section 12).
+- Notification recipients for every kind of change (section 12.2).
+- Which items are defaults and which were confirmed (the [DEFAULT] and [OPEN] markers).
+- The glossary of terms (section 16).
+
 ## Improvement plan
 
 Ideas for the next iterations, roughly in priority order:
@@ -173,7 +189,7 @@ Next.js 16 (App Router, TypeScript) · Supabase Postgres · Vercel. The database
 | `supabase/migrations/` | Changes for databases created from earlier schemas |
 | `scripts/seed-demo.ts` | Creates the demo project |
 | `tests/engine.test.ts` | Tests for the scheduling engine, permissions and alerts |
-| `CLAUDE.md` | The business rules this app implements |
+| `CLAUDE.md` | The full business rules and specification (see the section above) |
 
 ### Run it locally
 1. Create a Supabase project.
