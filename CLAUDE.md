@@ -220,7 +220,7 @@ Used for: the environment timeline table and the client commitment comparison.
 
 ## 9. Task timeline (dashboard tab)
 
-- **One lane per person** (confirmed). Each lane is labelled with name and role. Lanes are ordered by role: BA, PO, Designer, FE, BE, QC. Unassigned tasks go in a last lane labelled "Unassigned".
+- **One lane per person** (confirmed). Each lane is labelled with name and role. Lanes are ordered by role: PO, BA, Designer, FE, BE, QC (PM has no lane of its own). Unassigned tasks go in a last lane labelled "Unassigned".
 - Each open task is a **coloured segment** from its dependency-schedule start date to its inclusive end date. Colour is fixed per person.
 - Overlapping tasks of the same person stack into extra sub-rows in that lane.
 - Hover: code and name, phase and environment, start → end, working-day duration, status, each struggle reason with its flame, if any. The title appears only on hover.
@@ -237,8 +237,8 @@ Used for: the environment timeline table and the client commitment comparison.
 ## 10. Views
 
 ### 10.1 Projects list
-- Card per project: name, priority dropdown (PM edits), start date (PM edits), complete date (7.3), client commit (Prod), member count, task count, progress (closed / total).
-- Clicking a card opens the project board.
+- Card per project: name, priority dropdown (PM edits), complete date (7.3), client commit (Prod), member count, task count, progress (closed / total). The start date is edited in Settings, not on the card.
+- Clicking a card opens the project's Dashboard and Estimation tab.
 
 ### 10.2 Task Board
 - The project description panel is not on the Task Board. It moved to the top of Dashboard and Estimation (Health tab).
@@ -270,7 +270,7 @@ Buttons: Delete (PM/PO), Create (drafts only).
 - No "Today" control: the date is the system date.
 
 ### 10.5 Team
-- Team table with open-task count per member. PM can add existing members, remove members (their open tasks become unassigned), and create new members (name + role). Creating a member also creates their account.
+- Team table with open-task count per member. PM creates new members (name + role); creating a member also creates their account. Adding existing members to a project, and removing members (their open tasks become unassigned), is done in that project's Settings.
 
 ### 10.6 Notifications
 - Per account: list with time and project, unread highlight, "Mark all as read". Header bell with unread count.
@@ -354,28 +354,7 @@ Delivery: in-app only for now [DEFAULT].
 
 ---
 
-## 16. Open questions
-
-**Confirmed:**
-
-- **Q1. Overdue threshold:** more than 2 working days past the planned end. Duration is not part of the rule.
-- **Q2. Complete date:** ignores task status and uses planned durations.
-- **Q3. Team edits:** every member can change PIC and duration on their own tasks only. If a PIC hands a task to someone else, they lose access to it.
-
-**Still open (default in brackets):**
-
-- **Q4. Half-day durations?** [No, whole working days.]
-- **Q5. Notification channels beyond in-app (email, Slack, Teams)?** [In-app only.]
-- **Q6. Audit trail:** full history, or the simple change log? [Simple change log.]
-- **Q7. Depends-on editing by PIC:** should a PIC be able to add a dependency when they discover one? [No, PM/PO only.]
-- **Q8. Reopening a Closed task:** allowed? If yes, should its successors become blocked again? [Allowed; the link is kept, so successors are blocked again.]
-- **Q9. Task deadline change:** should it move successor deadlines? [No, only that task.]
-- **Q10. Cross-project dependencies:** needed? [No.]
-- **Q11. Workload threshold:** the previous 15-day "overloaded" flag is not used. Keep it, and at what value? [Not shown.]
-
----
-
-## 17. Glossary
+## 16. Glossary
 
 - **Depends on / blockedBy**: an upstream task that must finish before this one starts.
 - **Downstream**: tasks that depend on this one, directly or indirectly.

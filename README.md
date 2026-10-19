@@ -21,6 +21,28 @@ The demo project is locked: tasks cannot be deleted in it, and the project itsel
 
 ---
 
+## How to test with different accounts
+
+The app has **no sign-in yet**. Instead, you can switch to any team member at any time, so you can check what each role is allowed to do.
+
+1. Look at the **Signed in as** menu in the top-right corner. It lists every member with their role, for example `Alex.PM` or `Ben.PO`.
+2. Pick a member. The current account is saved in your browser, so it stays the same until you switch again.
+3. Open a project and try an action: change a status, a commitment date, or a deadline. Some controls will be disabled, which is the permission rule at work.
+4. Switch to another member and try the same action again.
+
+Suggested test order:
+
+| Account | What to check |
+|---|---|
+| `Alex.PM` (PM) | Everything: create a project, change the start date and priority, add or remove members, delete an unlocked project |
+| `Ben.PO` (PO) | Edit commitments, description, tasks and dependencies. Cannot change the start date, priority or members |
+| `Chloe.BA`, `Emma.FE`, `Frank.BE`, `Grace.QC` (team) | Only change the tasks they own: status, duration, PIC, output links, struggles |
+
+Notes for testing:
+- Permissions are checked on the server, so a disabled control cannot be bypassed by a direct request.
+- The **Payment Gateway v2 (demo)** project is locked: its tasks and the project itself cannot be deleted, even by PM.
+- Changes are shared: everyone who opens the app sees the same data. Please leave the demo project in a reasonable state for the next person.
+
 ## Key ideas
 
 ### Projects and the default flow
@@ -121,6 +143,17 @@ In-app notifications for changes in your projects, with a bell and an unread cou
 Permissions are checked on the server, so they hold even if a control is hidden or a request is changed.
 
 ---
+
+## Improvement plan
+
+Ideas for the next iterations, roughly in priority order:
+
+1. **Authentication.** Replace the "Signed in as" menu with real sign-in (email and password, or SSO such as Google Workspace). Use Supabase Auth and Row Level Security so each person only reads and writes the projects they belong to. Permission checks already live in one module (`src/lib/permissions.ts`), so they can be bound to the session without rewriting the rules.
+2. **Jira sync.** Import epics and stories as tasks, map Jira statuses to Golden Hour statuses, and push status and deadline changes back. Start with a one-way import, then add two-way sync with conflict rules (Jira wins for status, Golden Hour wins for commitments).
+3. **Notifications outside the app.** Send the LATE and To-do alerts to Slack or Microsoft Teams, and to email as a daily digest. Today they are in-app only.
+4. **Change history.** Keep a full audit trail per task and per project (who changed what, and when), with the before and after values. Today there is a simple activity log per task.
+5. **Scenario comparison.** Let the what-if tab save several scenarios side by side, for example "slip Dev back-end by 3 days" against "add a second developer", and show each one's finish date and buffer.
+6. **Weekly snapshots.** Store the projected finish and buffer once a week, so the dashboard can show whether a project is getting better or worse over time.
 
 ## For developers
 
