@@ -24,7 +24,7 @@ export default async function ProjectsPage() {
           <p className="muted">Where each project is heading, and which tasks need attention.</p>
         </div>
         {can(actor, 'project.create').ok && (
-          <Link href="/projects/new" className="pill" style={{ padding: '8px 14px', fontSize: 13 }}>
+          <Link href="/projects/new" className="pill-btn">
             + New project
           </Link>
         )}

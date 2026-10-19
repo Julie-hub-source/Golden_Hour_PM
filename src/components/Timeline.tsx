@@ -1,20 +1,23 @@
 import Link from 'next/link';
-import { addDays, diffDays, formatDayMonth, isWeekend } from '@/lib/calendar';
+import { addDays, diffDays, formatDate, formatDayMonth, isWeekend, weekdayShort } from '@/lib/calendar';
 import { isClosed, type DependencySchedule } from '@/lib/schedule';
-import { ROLE_ORDER, STATUS_LABEL, type Member, type Task } from '@/lib/types';
+import { ROLE_ORDER, ROLES, STATUS_LABEL, type Member, type Task } from '@/lib/types';
 
-const DAY_PX = 26;
+/** Day width in px, as in the prototype. */
+const DW = 26;
 
-/** Stable colour per person, from their id. */
-function colourFor(id: string): string {
-  let h = 0;
-  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return `hsl(${h % 360} 55% 45%)`;
+/** Same palette as the prototype, assigned by team order so each person keeps one colour. */
+const COLORS = ['#3b6cf6', '#2fa36b', '#f5a524', '#e5484d', '#8b5cf6', '#0ea5e9', '#ec4899', '#14b8a6', '#84cc16', '#6366f1'];
+
+interface Item {
+  task: Task;
+  start: string;
+  end: string;
 }
 
 /** Greedy sub-row packing: a task goes into the first sub-row that is free before it starts. */
-function packRows(items: { start: string; end: string; task: Task }[]) {
-  const rows: { end: string; items: typeof items }[] = [];
+function packRows(items: Item[]): Item[][] {
+  const rows: { end: string; items: Item[] }[] = [];
   for (const it of [...items].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))) {
     const row = rows.find((r) => r.end < it.start);
     if (row) {
@@ -25,14 +28,6 @@ function packRows(items: { start: string; end: string; task: Task }[]) {
     }
   }
   return rows.map((r) => r.items);
-}
-
-interface Lane {
-  key: string;
-  label: string;
-  role: string;
-  colour: string;
-  rows: ReturnType<typeof packRows>;
 }
 
 export function Timeline({
@@ -49,135 +44,158 @@ export function Timeline({
   commitProd: string;
 }) {
   const open = tasks.filter((t) => !isClosed(t) && schedule.plans.has(t.id));
-  if (open.length === 0) return <p className="empty">No open tasks to show.</p>;
+  if (open.length === 0) return <div className="card"><p className="muted">All tasks are Closed.</p></div>;
 
+  const memberIndex = new Map(members.map((m, i) => [m.id, i]));
   const memberById = new Map(members.map((m) => [m.id, m]));
   const roleRank = (role: string) => {
     const i = ROLE_ORDER.indexOf(role as (typeof ROLE_ORDER)[number]);
     return i === -1 ? ROLE_ORDER.length : i;
   };
+  const colourOf = (id: string | null) => {
+    const i = id ? memberIndex.get(id) ?? 0 : 0;
+    return id ? COLORS[i % COLORS.length] : '#9ca3af';
+  };
 
-  // Lanes: one per person ordered by role, unassigned last
+  // One lane per person, ordered by role; unassigned last
   const byPerson = new Map<string, Task[]>();
   for (const t of open) {
     const key = t.picId ?? 'unassigned';
     byPerson.set(key, [...(byPerson.get(key) ?? []), t]);
   }
-  const lanes: Lane[] = [...byPerson.entries()]
-    .map(([key, list]) => {
-      const m = key === 'unassigned' ? null : memberById.get(key) ?? null;
-      const items = list.map((t) => {
-        const p = schedule.plans.get(t.id)!;
-        return { start: p.start, end: p.end, task: t };
-      });
-      return {
-        key,
-        label: m ? m.name : 'Unassigned',
-        role: m ? m.role : '',
-        colour: m ? colourFor(m.id) : 'var(--muted)',
-        rows: packRows(items),
-      };
-    })
-    .sort((a, b) => {
-      if (a.key === 'unassigned') return 1;
-      if (b.key === 'unassigned') return -1;
-      return roleRank(a.role) - roleRank(b.role) || a.label.localeCompare(b.label);
-    });
+  const keys = [...byPerson.keys()].sort((a, b) => {
+    if (a === 'unassigned') return 1;
+    if (b === 'unassigned') return -1;
+    const ma = memberById.get(a), mb = memberById.get(b);
+    return roleRank(ma?.role ?? '') - roleRank(mb?.role ?? '') || (ma?.name ?? '').localeCompare(mb?.name ?? '');
+  });
 
-  // Visible range: from the Monday of the first start to a week after the last end
-  const allStarts = open.map((t) => schedule.plans.get(t.id)!.start);
-  const allEnds = open.map((t) => schedule.plans.get(t.id)!.end);
-  const first = allStarts.reduce((a, b) => (a < b ? a : b));
-  const last = allEnds.reduce((a, b) => (a > b ? a : b));
-  const rangeStart = addDays(first, -((((new Date(first + 'T00:00:00Z').getUTCDay() + 6) % 7))));
+  // Visible range: Monday of the first start to a week after the last end
+  const starts = open.map((t) => schedule.plans.get(t.id)!.start);
+  const ends = open.map((t) => schedule.plans.get(t.id)!.end);
+  const first = starts.reduce((a, b) => (a < b ? a : b));
+  const last = ends.reduce((a, b) => (a > b ? a : b));
+  const offsetToMonday = (new Date(first + 'T00:00:00Z').getUTCDay() + 6) % 7;
+  const rangeStart = addDays(first, -offsetToMonday);
   const rangeEnd = addDays(last, 7);
   const days = diffDays(rangeStart, rangeEnd) + 1;
-  const width = days * DAY_PX;
-  const x = (iso: string) => diffDays(rangeStart, iso) * DAY_PX;
+  const width = days * DW;
+  const x = (iso: string) => diffDays(rangeStart, iso) * DW;
 
   const dayList = Array.from({ length: days }, (_, i) => addDays(rangeStart, i));
-  const mondays = dayList.filter((d) => new Date(d + 'T00:00:00Z').getUTCDay() === 1);
   const weekends = dayList.filter((d) => isWeekend(d));
+  const mondays = dayList.filter((d) => new Date(d + 'T00:00:00Z').getUTCDay() === 1);
+
+  const legendPeople = members.filter((m) => byPerson.has(m.id));
 
   return (
-    <>
-      <div className="tl-legend">
-        <span>
-          <span className="health-dot" style={{ background: 'var(--amber)' }} /> critical path
+    <div className="card">
+      <h3>Task timeline · projected dates by member</h3>
+      <div className="legend">
+        {legendPeople.map((m) => (
+          <span key={m.id} className="chip">
+            <i style={{ background: colourOf(m.id) }} />
+            {m.name} · {m.role}
+          </span>
+        ))}
+        <span className="chip">
+          <i style={{ background: '#e7e9ec' }} />
+          Weekend (no work)
         </span>
-        <span>
-          <span className="health-dot" style={{ background: 'var(--red)' }} /> blocked
+        <span className="chip">
+          <i style={{ background: '#fff', outline: '2px solid var(--amber)' }} />
+          Critical path
         </span>
-        <span>
-          <span className="health-dot" style={{ background: 'var(--red)', borderRadius: 0, width: 2, height: 12 }} /> Prod commit{' '}
-          {formatDayMonth(commitProd)}
+        <span className="chip">
+          <i style={{ background: '#fff', boxShadow: '0 0 0 2px var(--red)' }} />
+          Blocked
         </span>
-        <span>Grey columns are weekends. Each person has one lane.</span>
+        <span className="chip">
+          <span style={{ width: 2, height: 12, borderLeft: '2px dashed var(--red)', display: 'inline-block' }} />
+          Prod commit {formatDate(commitProd)}
+        </span>
       </div>
-      <div className="timeline-wrap">
-        <div className="timeline" style={{ width: width + 190 }}>
-          <div className="tl-row">
-            <div className="tl-label muted">Person</div>
-            <div className="tl-axis" style={{ width, flex: '0 0 auto' }}>
+
+      <div className="tlscroll">
+        <div className="tlin" style={{ width: width + 190 }}>
+          <div className="axrow">
+            <div className="sp" />
+            <div className="ticks" style={{ width }}>
               {mondays.map((d) => (
-                <span key={d} style={{ left: x(d) + 2 }}>
+                <span key={d} style={{ left: x(d) }}>
                   {formatDayMonth(d)}
                 </span>
               ))}
             </div>
           </div>
 
-          {lanes.map((lane) => {
-            const height = Math.max(1, lane.rows.length) * DAY_PX + 6;
+          {keys.map((key) => {
+            const m = memberById.get(key) ?? null;
+            const items: Item[] = byPerson.get(key)!.map((t) => {
+              const p = schedule.plans.get(t.id)!;
+              return { task: t, start: p.start, end: p.end };
+            });
+            const rows = packRows(items);
+            const colour = colourOf(m?.id ?? null);
             return (
-              <div key={lane.key} className="tl-row" style={{ minHeight: height }}>
-                <div className="tl-label">
-                  <span style={{ color: lane.colour, fontWeight: 600 }}>{lane.label}</span>
-                  {lane.role && <div className="role">{lane.role}</div>}
-                </div>
-                <div className="tl-lane" style={{ width, height }}>
-                  {weekends.map((d) => (
-                    <div key={d} className="tl-weekend" style={{ left: x(d), width: DAY_PX }} />
-                  ))}
-                  <div className="tl-commit" style={{ left: x(commitProd) }} />
-                  {lane.rows.map((row, r) =>
-                    row.map(({ start, end, task }) => {
-                      const p = schedule.plans.get(task.id)!;
-                      const cls = ['tl-bar', p.critical ? 'critical' : '', task.blocked ? 'blocked' : ''].join(' ').trim();
-                      const title = [
-                        `${task.code} ${task.name}`,
-                        `${task.phase} · ${task.environment}`,
-                        `${start} → ${end} · ${task.duration} working day(s)`,
-                        STATUS_LABEL[task.status],
-                        task.blocked ? `Blocked: ${task.blocker}` : '',
-                      ]
-                        .filter(Boolean)
-                        .join('\n');
-                      return (
-                        <Link
-                          key={task.id}
-                          href={`/projects/${projectId}/tasks/${task.id}`}
-                          className={cls}
-                          title={title}
-                          style={{
-                            left: x(start) + 1,
-                            width: Math.max(DAY_PX, (diffDays(start, end) + 1) * DAY_PX) - 2,
-                            top: r * DAY_PX + 3,
-                            background: lane.colour,
-                            color: '#fff',
-                          }}
-                        >
-                          {task.code} {task.name}
-                        </Link>
-                      );
-                    }),
+              <div key={key} className="lane">
+                <div className="llabel">
+                  {m ? (
+                    <>
+                      <span style={{ color: colour, fontWeight: 600 }}>{m.name}</span>
+                      <div className="muted small">{m.role}</div>
+                    </>
+                  ) : (
+                    <span className="muted">Unassigned</span>
                   )}
+                </div>
+                <div className="ltrack" style={{ width, minHeight: Math.max(1, rows.length) * 30 + 14 }}>
+                  {weekends.map((d) => (
+                    <div key={d} className="wkend" style={{ left: x(d), width: DW }} />
+                  ))}
+                  <div className="cline" style={{ left: x(commitProd) }} title={`Prod commit ${formatDate(commitProd)}`} />
+                  {rows.map((row, r) => (
+                    <div key={r} className="lrow">
+                      {row.map(({ task, start, end }) => {
+                        const p = schedule.plans.get(task.id)!;
+                        const w = Math.max(DW, (diffDays(start, end) + 1) * DW) - 2;
+                        const flip = x(start) > width * 0.6;
+                        return (
+                          <Link
+                            key={task.id}
+                            href={`/projects/${projectId}/tasks/${task.id}`}
+                            className={`seg ${p.critical ? 'crit' : ''} ${task.blocked ? 'blk' : ''}`}
+                            style={{ left: x(start) + 1, width: w, background: colour }}
+                          >
+                            {task.code}
+                            <span className={`tip ${flip ? 'tr' : ''}`}>
+                              <b>
+                                {task.code} · {task.name}
+                              </b>
+                              <br />
+                              {task.phase} · {task.environment}
+                              <br />
+                              {weekdayShort(start)} {formatDate(start)} → {weekdayShort(end)} {formatDate(end)} ({task.duration} working day
+                              {task.duration === 1 ? '' : 's'})
+                              <br />
+                              Status: {STATUS_LABEL[task.status]}
+                              {task.blocked ? ` · Blocked: ${task.blocker}` : ''}
+                              {p.critical ? ' · Critical path' : ''}
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               </div>
             );
           })}
         </div>
       </div>
-    </>
+      <p className="note">
+        Scroll sideways to move along the timeline. Saturdays and Sundays are shaded and never hold work. Hover a segment for the dates; click it to open the task. Closed tasks are hidden. Overlapping tasks of the same person stack into extra rows. Roles in use: {ROLES.join(', ')}.
+      </p>
+    </div>
   );
 }

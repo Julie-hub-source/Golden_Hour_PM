@@ -140,15 +140,15 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         )}
       </form>
 
-      <div className="columns">
+      <div className="board">
         {STATUSES.map((status) => {
           const col = filtered.filter((t) => t.status === status);
           return (
-            <section key={status} className="column">
-              <h3>
+            <section key={status} className="col">
+              <div className="colh">
                 <span>{STATUS_LABEL[status]}</span>
-                <span className="muted small">{col.length}</span>
-              </h3>
+                <span>{col.length}</span>
+              </div>
               {col.map((t) => (
                 <TaskCard
                   key={t.id}
@@ -188,7 +188,7 @@ function TaskCard({
   critical: boolean;
   actorCan: (action: 'task.pic' | 'task.duration' | 'task.status') => boolean;
 }) {
-  const classes = ['task-card', task.blocked ? 'blocked' : '', critical ? 'critical' : ''].join(' ').trim();
+  const classes = ['ct', task.blocked ? 'bl' : '', critical ? 'crit' : ''].join(' ').trim();
   const hidden = { projectId, taskId: task.id };
   return (
     <div className={classes}>
