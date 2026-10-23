@@ -97,9 +97,10 @@ test('happy case runs environments in order and skips STG when absent', () => {
   ];
   const hc = happyCase(tasks, START);
   assert.deepEqual(hc.envs.map((e) => e.env), ['UAT', 'Prod']);
-  // UAT: 5 days, Prod starts day 5 (Mon 12 Jan), 2 days -> ends Tue 13 Jan
-  assert.equal(hc.envs[1].start, '2026-01-12');
-  assert.equal(hc.prodCompletion, '2026-01-13');
+  // u1 (3 days) and u2 (2 days) are not linked, so they run in parallel: UAT takes 3 days.
+  // Prod starts on day 3 (Thu 8 Jan) and takes 2 days, ending Fri 9 Jan
+  assert.equal(hc.envs[1].start, '2026-01-08');
+  assert.equal(hc.prodCompletion, '2026-01-09');
 });
 
 test('happy case: a finished environment keeps its planned dates, and the next one starts after them', () => {

@@ -205,8 +205,8 @@ export const envsPresent = (tasks: Pick<Task, 'environment'>[]): Environment[] =
 };
 
 /**
- * Environments run in order. Open tasks within an environment run one after another in flow
- * order (sortOrder). Each environment starts on the working day after the previous one finishes.
+ * Environments run in order. Within an environment, a task starts once the tasks it depends on have
+ * finished, so parallel tasks overlap. Each environment starts on the working day after the previous one finishes.
  * `late` maps a late task to its late working days (section 7.6). Each environment's late days are
  * added after its tasks, so its completion moves by that many days and so does every later environment.
  */
@@ -221,6 +221,8 @@ export function happyCase(
   const plannedClosed = closedPlanMap(tasks, startIso);
   const envs: EnvPlan[] = [];
   const taskDates = new Map<string, { start: string; end: string }>();
+  // Planned working-day window of every open task, as [s, e) indices (e exclusive)
+  const planned = new Map<string, { s: number; e: number }>();
   let cursor = 0;
 
   for (const env of envsPresent(tasks)) {
@@ -246,19 +248,27 @@ export function happyCase(
       continue;
     }
 
+    // Tasks run as soon as everything they depend on has finished. Parallel tasks overlap, so a step
+    // counts once (its longest task), not as a sum. The environment starts after the previous one.
     const startIdx = cursor;
+    let envEnd = startIdx;
     for (const t of open) {
+      let s = startIdx;
+      for (const b of t.blockedBy) {
+        const p = planned.get(b);
+        if (p) s = Math.max(s, p.e);
+      }
       const d = dur(t);
-      const s = cursor;
-      const e = cursor + d;
+      const e = s + d;
+      planned.set(t.id, { s, e });
       taskDates.set(t.id, {
         start: workdayDate(startIso, s),
         end: d === 0 ? workdayDate(startIso, s) : workdayDate(startIso, e - 1),
       });
-      cursor = e;
+      envEnd = Math.max(envEnd, e);
     }
     const lateDays = open.reduce((n, t) => n + (late?.get(t.id) ?? 0), 0);
-    cursor += lateDays;
+    cursor = envEnd + lateDays;
     const completion = cursor > startIdx ? workdayDate(startIso, cursor - 1) : workdayDate(startIso, startIdx);
     envs.push({
       env,
@@ -312,19 +322,8 @@ export function simulateProd(
 ): SimResult {
   const runs = opts.runs ?? SIM_RUNS;
   const rand = opts.random ?? Math.random;
-  const sorted = [...tasks].sort((a, b) => a.sortOrder - b.sortOrder);
-  const envList = envsPresent(tasks);
-
-  // Open tasks grouped by environment, in order. Env without open tasks is skipped.
-  const groups = envList
-    .map((env) => ({
-      env,
-      items: sorted.filter((t) => t.environment === env && !isClosed(t)),
-    }))
-    .filter((g) => g.items.length > 0);
-
-  const prodGroup = groups.find((g) => g.env === 'Prod');
-  if (!prodGroup) {
+  const hasOpenProd = tasks.some((t) => t.environment === 'Prod' && !isClosed(t));
+  if (!hasOpenProd) {
     return { runs, lateProbability: 0, histogram: [], p50: null, p80: null };
   }
 
@@ -333,20 +332,17 @@ export function simulateProd(
   const completions: string[] = [];
 
   for (let r = 0; r < runs; r++) {
-    let cursor = 0;
-    let prodEnd = 0;
-    for (const g of groups) {
-      let total = 0;
-      for (const t of g.items) {
-        const factor = t.blocked
-          ? sampleTriangular(1.0, 1.5, 2.2, rand())
-          : sampleTriangular(0.9, 1.05, 1.4, rand());
-        total += Math.max(1, Math.round(t.duration * factor));
-      }
-      cursor += total;
-      if (g.env === 'Prod') prodEnd = cursor;
+    // Each run draws new durations and runs the same happy-case plan (parallel tasks count once)
+    const durations = new Map<string, number>();
+    for (const t of tasks) {
+      if (isClosed(t)) continue;
+      const factor = t.blocked
+        ? sampleTriangular(1.0, 1.5, 2.2, rand())
+        : sampleTriangular(0.9, 1.05, 1.4, rand());
+      durations.set(t.id, Math.max(1, Math.round(t.duration * factor)));
     }
-    const completion = workdayDate(startIso, prodEnd - 1);
+    const completion = happyCase(tasks, startIso, durations).prodCompletion;
+    if (!completion) continue;
     counts.set(completion, (counts.get(completion) ?? 0) + 1);
     completions.push(completion);
     if (completion > commitProd) late++;

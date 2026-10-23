@@ -164,7 +164,7 @@ Work on a working-day index: index 0 is the first working day on or after the pr
 Used for: the environment timeline table and the client commitment comparison.
 
 - Environments run in order: UAT, then STG (only if the project has STG tasks), then Prod.
-- Within an environment, open tasks run **one after another** in flow order, regardless of parallelism. The total is the sum of their durations.
+- Within an environment, each open task starts on the first working day after every open task it depends on has finished (the same dependency rule as 7.1). Tasks that do not depend on each other run in parallel, so a step counts once, as its longest task. Closed tasks take no time, but an open task still starts after the planned finish of its closed predecessors.
 - Each environment starts on the working day after the previous environment finishes. The first starts at index 0.
 - Completion of an environment = last working day of its last open task. If all its tasks are closed, the environment is finished: it still shows its planned start and completion dates, and its column header reads "UAT (done)". Later environments start after those planned dates.
 - Closed tasks take no time.
