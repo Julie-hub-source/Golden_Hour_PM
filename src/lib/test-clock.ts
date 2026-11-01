@@ -50,6 +50,9 @@ export async function writeTestClock(clock: TestClock | null): Promise<void> {
 export function applyTestClock(tasks: Task[], clock: TestClock): Task[] {
   return tasks.map((t) => {
     const status = clock.statuses[t.id];
-    return status ? { ...t, status, sinceDate: clock.date } : t;
+    if (!status) return t;
+    // Closing a task solves its struggles, as the real change does
+    const issues = status === 'closed' ? t.issues.map((i) => (i.solvedAt ? i : { ...i, solvedAt: clock.date })) : t.issues;
+    return { ...t, status, sinceDate: clock.date, issues, blocked: issues.some((i) => !i.solvedAt) };
   });
 }

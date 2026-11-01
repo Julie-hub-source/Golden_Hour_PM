@@ -69,7 +69,7 @@ Notes:
 - **Duration**: whole working days, integer 0–20 in the UI. Zero means the task takes no time. (Half days: [DEFAULT] not supported.)
 - **Depends on**: an upstream task that must finish before this task can start. Stored as a list of task IDs (field `blockedBy`). Use "depends on" only for task-to-task links.
 - **Struggle**: something outside the team's control that holds a task up (for example, a vendor API not delivered). It needs a reason. A task can have many struggles. Each one is shown as a flame 🔥 on the timeline, the dependency tree and the board. Marking it solved crosses the flame out. A task is **blocked** while it has at least one unsolved struggle.
-- **Closed**: final status. A closed task does not block its successors beyond the day it actually finished. If it was closed late (after its deadline), it ends on its close day, so its late days show on the timeline and its successors stay where they were, never moving left.
+- **Closed**: final status. When a task is set to Closed, all its struggles are marked solved (whether solved or not before). A closed task does not block its successors beyond the day it actually finished. If it was closed late (after its deadline), it ends on its close day, so its late days show on the timeline and its successors stay where they were, never moving left.
 - **Today**: the real system date in the project's timezone, **Asia/Ho_Chi_Minh** [DEFAULT]. Not user-editable.
 
 ---

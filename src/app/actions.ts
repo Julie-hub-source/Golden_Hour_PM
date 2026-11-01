@@ -579,6 +579,12 @@ export async function updateTask(fd: FormData): Promise<ActionResult> {
     const up = await db().from('tasks').update(patch).eq('id', task.id);
     if (up.error) throw new Error(up.error.message);
 
+    // Closing a task solves all its struggles, whether they were solved or not
+    if (patch.status === 'closed') {
+      const solved = await db().from('task_issues').update({ solved_at: new Date().toISOString() }).eq('task_id', task.id).is('solved_at', null);
+      if (solved.error) throw new Error(solved.error.message);
+    }
+
     // Recipients: PM, PO and the PIC after the change (12.2). Renames go to every member.
     const newPicId = has(fd, 'picId') ? (str(fd, 'picId') || null) : task.picId;
     const recipients = pmPoAndPic(data, { picId: newPicId });
