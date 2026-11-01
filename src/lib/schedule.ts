@@ -207,8 +207,9 @@ export const envsPresent = (tasks: Pick<Task, 'environment'>[]): Environment[] =
 /**
  * Environments run in order. Within an environment, a task starts once the tasks it depends on have
  * finished, so parallel tasks overlap. Each environment starts on the working day after the previous one finishes.
- * `late` maps a late task to its late working days (section 7.6). Each environment's late days are
- * added after its tasks, so its completion moves by that many days and so does every later environment.
+ * `late` maps a late task to its late working days (section 7.6). The environment's late days are the
+ * largest of its open tasks (parallel late tasks share the same days). They are added after its tasks,
+ * so its completion moves by that many days and so does every later environment.
  * `plan` (the live dependency schedule) overrides the timing of open tasks, so completion matches the Gantt:
  * late tasks end today and their successors move once. Late days are then already in the plan, not added again.
  */
@@ -272,7 +273,8 @@ export function happyCase(
       });
       envEnd = Math.max(envEnd, e);
     }
-    const lateDays = open.reduce((n, t) => n + (plan ? plan.plans.get(t.id)?.lateWd ?? 0 : late?.get(t.id) ?? 0), 0);
+    // Late tasks in parallel share the same calendar days, so the environment is late by the largest, not the sum
+    const lateDays = open.reduce((n, t) => Math.max(n, plan ? plan.plans.get(t.id)?.lateWd ?? 0 : late?.get(t.id) ?? 0), 0);
     cursor = plan ? envEnd : envEnd + lateDays;
     const completion = cursor > startIdx ? workdayDate(startIso, cursor - 1) : workdayDate(startIso, startIdx);
     envs.push({

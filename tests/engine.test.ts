@@ -325,6 +325,15 @@ test('environment late days move that environment and every later one', () => {
   assert.equal(plain.envs.find((e) => e.env === 'Prod')!.start, '2026-01-07');
 });
 
+test('parallel late tasks in one environment count the largest late days, not the sum', () => {
+  const tasks = [
+    task({ id: 'a', duration: 2, environment: 'UAT', sortOrder: 1 }),
+    task({ id: 'b', duration: 2, environment: 'UAT', sortOrder: 2 }),
+  ];
+  const late = happyCase(tasks, START, undefined, new Map([['a', 1], ['b', 1]]));
+  assert.equal(late.envs.find((e) => e.env === 'UAT')!.late, 1);
+});
+
 test('task deletion can be turned off per project, for everyone including PM', () => {
   const pm = { id: 'pm', role: 'PM' as const, name: 'pm' };
   const members = new Set(['pm']);
