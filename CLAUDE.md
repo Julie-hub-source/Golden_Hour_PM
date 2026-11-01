@@ -177,14 +177,13 @@ Used for: the environment timeline table and the client commitment comparison.
 
 ### 7.4 Projected completion and late probability
 
-- Projected Prod completion = happy-case completion of Prod.
-- **Late probability** (kept, confirmed): run 1,500 simulations. In each run, multiply the duration of every open task by a random factor, then round to a whole day with a minimum of 1:
+- Projected Prod completion = the Prod row "1) Task completion" in section 8: the last open Prod task that has a PIC on the dependency schedule.
+- Health colour: red if the projected Prod completion is after the Prod commit; green otherwise. No probability is used. [DEFAULT] The Monte Carlo below is not part of Health, and is not shown anywhere in the app.
+- **Late probability (not in use)**: run 1,500 simulations. In each run, multiply the duration of every open task by a random factor, then round to a whole day with a minimum of 1:
   - tasks with an open struggle: triangular(min 1.0, mode 1.5, max 2.2)
   - other open tasks: triangular(min 0.9, mode 1.05, max 1.4)
   - closed tasks: 0
   Recompute the happy-case Prod completion for each run. Late probability = share of runs finishing after the Prod commit.
-- Health colour: red if projected Prod completion is after the Prod commit; amber if late probability > 30%; green otherwise.
-- Run the simulation server-side and cache it per project. Recompute when tasks, durations, statuses, dependencies, struggles, or commits change.
 
 ### 7.5 Changing the start date
 
@@ -204,7 +203,7 @@ Used for: the environment timeline table and the client commitment comparison.
 - **Late task bars end today.** A late task is still running, so its projected finish is today (the last working day on or before today), not later. Its bar covers the start up to today.
 - **Shifted successors.** A task that has not started yet has its start and end moved by the late working days of the tasks before it. It is not late, so it shows no Late tag. If its end passes its own deadline, it shows red stripes.
 - Each successor starts after the projected finish of all its open predecessors. A late predecessor therefore pushes each successor by exactly its late working days, once. The delay is not added again at each step down a chain. Closed predecessors push nothing.
-- The Monte Carlo (7.4) is not changed by late tasks. The Health environment timeline (section 8) and the dependency schedule (Gantt, dependency tree, what-if, priority) both use the late-adjusted dependency schedule, so their completion dates agree.
+- Late tasks change the Health environment timeline (section 8) and the dependency schedule (Gantt, dependency tree, what-if, priority) both use the late-adjusted dependency schedule, so their completion dates agree.
 
 ---
 
@@ -265,8 +264,7 @@ In order:
 Buttons: Delete (PM/PO), Create (drafts only).
 
 ### 10.4 Dashboard and Estimation (tabs)
-- **Health & workload**: project description panel first (collapsible: Context, Client info, Related documents, one per line "Name | link"), then banner (state, projected Prod completion vs commit, late probability); four key figures shown as boxes in a row: projected Prod completion (happy case), client commitment (Prod), buffer (working days between commitment and projection, positive = spare, negative = late, 0 = right at the deadline), and progress (Closed tasks / total, with %). Labels are in English; environment timeline (section 8); workload by person across all projects (name, role, projects, open tasks). The simulated Prod completion histogram is not shown. The simulation still runs for the late probability and the P50/P80 range.
-- **Task timeline**: section 9.
+- **Health & workload**: project description panel first (collapsible: Context, Client info, Related documents, one per line "Name | link"), then banner (state: On track or Late, and the projected Prod completion vs commit); four key figures shown as boxes in a row: projected Prod completion (happy case), client commitment (Prod), buffer (working days between commitment and projection, positive = spare, negative = late, 0 = right at the deadline), and progress (Closed tasks / total, with %). Labels are in English; environment timeline (section 8); workload by person across all projects (name, role, projects, open tasks).- **Task timeline**: section 9.
 - **What-if**: pick an open task and an extra delay of 0–10 working days. Shows new projected finish, added delay, buffer or lateness vs Prod commit, and the list of pushed-back tasks.
 - **Priority**: section 11.
 - No "Today" control: the date is the system date.
@@ -352,7 +350,7 @@ Delivery: in-app only for now [DEFAULT].
 
 - Data is stored in Supabase (PostgreSQL). All reads and writes go through server code with server-side permission checks.
 - Store dates as calendar dates. Store `sinceMs` as a date, not a timestamp.
-- The simulation must return quickly for interactive use. Compute it server-side and cache it.
+- Health is computed from the schedule only, so it is fast without caching. (The Monte Carlo of 7.4 is not used.)
 - Audit trail: [DEFAULT] keep a simple change log per task (who, what, when). Full audit is open (Q6).
 
 ---

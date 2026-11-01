@@ -1,10 +1,9 @@
 import 'server-only';
 import { cache } from 'react';
-import { createHash } from 'node:crypto';
 import { db } from './supabase';
 import { todayIso } from './calendar';
 import { applyTestClock, readTestClock } from './test-clock';
-import { simulateProd, type SimResult, happyCase, healthColor, type HealthColor, completeDate, bufferDays, isClosed, dependencySchedule } from './schedule';
+import { happyCase, healthColor, type HealthColor, completeDate, bufferDays, isClosed, dependencySchedule } from './schedule';
 import type { Member, Project, ProjectData, Task, TaskIssue, TaskOutput, Role, Environment, Status, Priority, OutputType } from './types';
 
 /* ---------------- Row types (snake_case from Postgres) ---------------- */
@@ -174,66 +173,32 @@ async function loadPortfolioUncached(): Promise<Portfolio> {
 
 export const loadPortfolio = cache(loadPortfolioUncached);
 
-/* ---------------- Health with cached simulation (7.4) ---------------- */
+/* ---------------- Health (section 10.4) ---------------- */
 
 export interface Health {
+  /** Red when the projected Prod completion is after the client commit, otherwise green. */
   color: HealthColor;
   projectedProd: string | null;
   commitProd: string;
-  lateProbability: number;
-  p50: string | null;
-  p80: string | null;
-  histogram: { date: string; count: number }[];
   /** Working-day buffer on the projected Prod completion. Negative = late. Null when Prod is Done. */
   buffer: number | null;
   happy: ReturnType<typeof happyCase>;
   completeDate: string;
-  cached: boolean;
-}
-
-/** Hash of every input the simulation depends on. A change in any of them triggers a recompute. */
-function simInputHash(data: PortfolioProject): string {
-  const p = data.project;
-  const tasks = [...data.tasks]
-    .sort((a, b) => a.code.localeCompare(b.code))
-    .map((t) => [t.id, t.environment, t.duration, t.status, t.blocked, [...t.blockedBy].sort()]);
-  return createHash('sha256')
-    .update(JSON.stringify([p.startDate, p.commitProd, tasks]))
-    .digest('hex');
 }
 
 export async function getHealth(data: PortfolioProject, today: string = todayIso()): Promise<Health> {
   const { project, tasks } = data;
   // Same timing as the Gantt (dependency schedule), so Task completion matches the timeline
   const happy = happyCase(tasks, project.startDate, undefined, undefined, dependencySchedule(tasks, project.startDate, { today }));
-  const hash = simInputHash(data);
-
-  let sim: SimResult | null = null;
-  let cached = false;
-  const cachedRes = await db().from('sim_cache').select('input_hash, payload').eq('project_id', project.id).maybeSingle();
-  if (!cachedRes.error && cachedRes.data && cachedRes.data.input_hash === hash) {
-    sim = cachedRes.data.payload as SimResult;
-    cached = true;
-  } else {
-    sim = simulateProd(tasks, project.startDate, project.commitProd);
-    await db()
-      .from('sim_cache')
-      .upsert({ project_id: project.id, input_hash: hash, payload: sim, computed_at: new Date().toISOString() });
-  }
 
   const projected = happy.prodCompletion;
   return {
-    color: healthColor(projected, project.commitProd, sim.lateProbability),
+    color: healthColor(projected, project.commitProd),
     projectedProd: projected,
     commitProd: project.commitProd,
-    lateProbability: sim.lateProbability,
-    p50: sim.p50,
-    p80: sim.p80,
-    histogram: sim.histogram,
     buffer: projected ? bufferDays(projected, project.commitProd) : null,
     happy,
     completeDate: completeDate(tasks, project.startDate),
-    cached,
   };
 }
 

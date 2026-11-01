@@ -505,12 +505,11 @@ export function simulateProd(
 
 /* ---------------- Health (7.4 and 8) ---------------- */
 
-export type HealthColor = 'red' | 'amber' | 'green';
+export type HealthColor = 'red' | 'green';
 
-export function healthColor(projectedProd: string | null, commitProd: string, lateProbability: number): HealthColor {
-  if (projectedProd && projectedProd > commitProd) return 'red';
-  if (lateProbability > 0.3) return 'amber';
-  return 'green';
+/** Red when the projected Prod completion is after the client commit, otherwise green (section 7.4). */
+export function healthColor(projectedProd: string | null, commitProd: string): HealthColor {
+  return projectedProd && projectedProd > commitProd ? 'red' : 'green';
 }
 
 /**

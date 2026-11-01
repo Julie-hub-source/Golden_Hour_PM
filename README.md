@@ -153,7 +153,7 @@ The full business rules are in [CLAUDE.md](CLAUDE.md). This README explains how 
 - The default 35-task flow, step by step, with roles and durations (section 5).
 - The task data model: fields, allowed values and validation rules (sections 6 and 13).
 - The scheduling formulas: dependency schedule, early and late finish, slack, critical path, complete date (section 7).
-- The Monte Carlo settings for the late probability: 1,500 runs and the triangular ranges (section 7.4).
+- The Health colour: red when the projected Prod completion is after the client commit, green otherwise (section 7.4).
 - The late-task rules and how a late task moves its successors (section 7.6).
 - Each alert and its exact message, and who receives it (section 12).
 - Notification recipients for every kind of change (section 12.2).

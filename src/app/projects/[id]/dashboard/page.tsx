@@ -35,7 +35,6 @@ interface SearchParams {
   open?: string;
 }
 
-const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 /** Date in the format used by the environment timeline, e.g. "Mon 19/10/26". */
 const wd = (iso: string) => formatDate(iso);
@@ -120,11 +119,9 @@ async function HealthTab({
   const banner =
     health.color === 'red' && health.projectedProd
       ? `Projected Prod completion ${formatDate(health.projectedProd)} is after the client commit ${formatDate(project.commitProd)} by ${Math.abs(health.buffer ?? 0)} working day(s).`
-      : health.color === 'amber'
-        ? `Projected completion ${formatDate(health.projectedProd)} is within the commit, but ${pct(health.lateProbability)} of simulated runs finish late.`
-        : health.projectedProd
-          ? `On track: projected Prod completion ${formatDate(health.projectedProd)} against commit ${formatDate(project.commitProd)}.`
-          : 'All Prod tasks are closed.';
+      : health.projectedProd
+        ? `On track: projected Prod completion ${formatDate(health.projectedProd)} against commit ${formatDate(project.commitProd)}.`
+        : 'All Prod tasks are closed.';
 
   const envs = health.happy.envs;
   const commitFor = (env: string) =>
@@ -147,7 +144,7 @@ async function HealthTab({
       <ProjectDescription projectId={projectId} project={project} />
 
       <div className={`banner ${health.color}`}>
-        <strong>{health.color === 'red' ? 'Late' : health.color === 'amber' ? 'At risk' : 'On track'}.</strong> {banner}
+        <strong>{health.color === 'red' ? 'Late' : 'On track'}.</strong> {banner}
       </div>
 
       <div className="kpis">
