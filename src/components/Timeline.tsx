@@ -248,7 +248,7 @@ export function Timeline({
         </div>
       </div>
       <p className="note">
-        The timeline shows the whole project, from the first task to the last. Closed tasks use their planned dates and keep their normal colour. Scroll sideways to move along the timeline. Saturdays and Sundays are shaded and never hold work. Hover a segment for the dates; click it to open the task. Overlapping tasks of the same person stack into extra rows.
+        The timeline shows the whole project, from the first task to the last. Closed tasks end on the day they were closed; red stripes mark their late days. Scroll sideways to move along the timeline. Saturdays and Sundays are shaded and never hold work. Hover a segment for the dates; click it to open the task. Overlapping tasks of the same person stack into extra rows.
       </p>
     </div>
   );

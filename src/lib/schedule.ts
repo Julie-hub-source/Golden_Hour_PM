@@ -363,7 +363,7 @@ export function happyCase(
     const open = envTasks.filter((t) => !isClosed(t));
     const present = envTasks.length > 0;
     if (open.length === 0) {
-      // Finished environment: show the planned dates of its tasks, and later environments start after them
+      // Finished environment: show the dates of its tasks (a Closed task ends on its close day), and later environments start after them
       const dates = envTasks.map((t) => plannedClosed.get(t.id)).filter((d): d is ClosedPlan => !!d);
       const start = dates.length ? dates.map((d) => d.start).reduce((a, b) => (a < b ? a : b)) : null;
       const completion = dates.length ? dates.map((d) => d.end).reduce((a, b) => (a > b ? a : b)) : null;
