@@ -197,7 +197,7 @@ Used for: the environment timeline table and the client commitment comparison.
 ### 7.6 Late tasks
 
 - A task is **late** only when all hold: its status is not Closed, its deadline is strictly before today (Asia/Ho_Chi_Minh), and it has started (its projected start is today or earlier). A deadline of today or later is never late. A task that has not started yet is never late, even if its original deadline has passed.
-- **Late working days** = working days after the deadline, up to and including today.
+- **Late working days** = working days after the deadline, up to and including today (or the close day for a Closed task). They are counted only from the day the task could start, that is, after its predecessors finish. Days spent waiting for late predecessors are not counted again, because those predecessors already count their own late days.
 - When a task first becomes late, one notification goes to every member of the project:
   `LATE: T04 "Dev back-end UAT" passed its deadline (Mon 13/10/2026) by 4 working day(s). PIC: Binh.`
   It is sent once per task. It is sent again only if the deadline changes or the task is reopened.

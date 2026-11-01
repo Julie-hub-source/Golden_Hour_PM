@@ -358,6 +358,17 @@ test('closed late: the task shows its late days, and successors do not move left
   assert.deepEqual(closedLateness(task({ id: 'c', status: 'closed', deadline: '2026-01-09', sinceDate: '2026-01-09' })), { late: false, lateWd: 0 }, 'closed on the deadline is on time');
 });
 
+test('late days count only from when the task could start, not while it waited for late predecessors', () => {
+  // a: deadline Tue 6 Jan, closed Fri 9 Jan (3 days late). b: deadline Tue 6 Jan, waits for a, closed Mon 12 Jan.
+  // b could only start Mon 12 Jan, so it is 1 day late (its own), not 4 (from 6 Jan).
+  const tasks = [
+    task({ id: 'a', duration: 2, deadline: '2026-01-06', status: 'closed', sinceDate: '2026-01-09' }),
+    task({ id: 'b', duration: 1, deadline: '2026-01-06', status: 'closed', sinceDate: '2026-01-12', blockedBy: ['a'] }),
+  ];
+  const b = closedPlanMap(tasks, START).get('b')!;
+  assert.deepEqual({ late: b.late, lateWd: b.lateWd, start: b.start }, { late: true, lateWd: 1, start: '2026-01-12' });
+});
+
 test('task deletion can be turned off per project, for everyone including PM', () => {
   const pm = { id: 'pm', role: 'PM' as const, name: 'pm' };
   const members = new Set(['pm']);

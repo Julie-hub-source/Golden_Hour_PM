@@ -8,39 +8,83 @@ import { ENVIRONMENTS, type Environment, type Task } from './types';
 export const isClosed = (t: Pick<Task, 'status'>) => t.status === 'closed';
 
 /**
+ * Working days a task is late (7.6). They are counted from the deadline, but only from the day the task could
+ * start (`ready`): days spent waiting for late predecessors were already counted on those predecessors, so they
+ * are not counted again. Counts the working days in (from, end], where from = the later of the deadline and the
+ * working day before `ready`.
+ */
+function lateDays(deadline: string, end: string, ready?: { startIso: string; idx: number }): number {
+  let from = deadline;
+  if (ready && ready.idx > 0) {
+    const dayBefore = workdayDate(ready.startIso, ready.idx - 1);
+    if (dayBefore > from) from = dayBefore;
+  }
+  return end > from ? workdaysAfter(from, end) : 0;
+}
+
+/**
  * Late (section 2): an open task whose deadline is strictly before today.
- * lateWd = working days after the deadline, up to and including today.
+ * lateWd = working days after the deadline, up to and including today, counted from when the task could start.
  */
 export function lateness(
   task: Pick<Task, 'status' | 'deadline'>,
   today: string,
   started = true,
+  ready?: { startIso: string; idx: number },
 ): { late: boolean; lateWd: number } {
   // A task that has not started yet cannot be late. Its dates are moved by the tasks before it.
   if (!started || isClosed(task) || task.deadline >= today) return { late: false, lateWd: 0 };
-  return { late: true, lateWd: workdaysAfter(task.deadline, today) };
+  const lateWd = lateDays(task.deadline, today, ready);
+  return { late: lateWd > 0, lateWd };
 }
 
 /**
- * Closed tasks (7.6): a task closed after its deadline is late by the working days from the deadline to the
- * day it was closed (`sinceDate` is the date of the last status change, i.e. the close date).
+ * Closed tasks (7.6): a task closed after its deadline is late by the working days from when it could start
+ * until the day it was closed (`sinceDate` is the date of the last status change, i.e. the close date).
  */
-export function closedLateness(task: Pick<Task, 'status' | 'deadline' | 'sinceDate'>): { late: boolean; lateWd: number } {
+export function closedLateness(
+  task: Pick<Task, 'status' | 'deadline' | 'sinceDate'>,
+  ready?: { startIso: string; idx: number },
+): { late: boolean; lateWd: number } {
   if (!isClosed(task) || task.sinceDate <= task.deadline) return { late: false, lateWd: 0 };
-  return { late: true, lateWd: workdaysAfter(task.deadline, task.sinceDate) };
+  const lateWd = lateDays(task.deadline, task.sinceDate, ready);
+  return { late: lateWd > 0, lateWd };
+}
+
+/** Working-day index of a close date. A close on a weekend counts as the Friday before it, as with lastWorkday. */
+function closeIdxOf(closeDay: string, startIso: string): number {
+  return isWeekend(closeDay) ? workIndex(startIso, closeDay) - 1 : workIndex(startIso, closeDay);
 }
 
 /**
- * Exclusive working-day index where a task ends on the dependency schedule. A late Closed task ends on the
- * day it was closed, so its successors stay where they were; a task on time keeps its planned finish.
+ * Closed tasks along the dependency chain. Each one starts after its blockers finish (closed blockers use their
+ * own finish, open blockers use `openEf`). A late Closed task ends on the day it was closed, so its successors
+ * stay where they were. Returns exclusive finish indices and the late data.
  */
-export function finishIdxOf(task: Pick<Task, 'status' | 'deadline' | 'sinceDate'>, plannedEf: number, startIso: string): number {
-  const cl = closedLateness(task);
-  if (!cl.late) return plannedEf;
-  // A close on a weekend counts as the Friday before it, as with lastWorkday
-  const closeDay = task.sinceDate;
-  const closeIdx = isWeekend(closeDay) ? workIndex(startIso, closeDay) - 1 : workIndex(startIso, closeDay);
-  return Math.max(plannedEf, closeIdx + 1);
+function closedChain(
+  tasks: Task[],
+  startIso: string,
+  dur: (t: Task) => number,
+  openEf: Map<string, number>,
+): Map<string, { es: number; ef: number; late: boolean; lateWd: number }> {
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  const out = new Map<string, { es: number; ef: number; late: boolean; lateWd: number }>();
+  for (const id of topoOrder(new Set(byId.keys()), (x) => byId.get(x)?.blockedBy ?? [])) {
+    const t = byId.get(id)!;
+    if (!isClosed(t)) continue;
+    let es = 0;
+    for (const b of t.blockedBy) {
+      const bt = byId.get(b);
+      if (!bt) continue;
+      const f = isClosed(bt) ? out.get(b)?.ef : openEf.get(b);
+      if (f !== undefined) es = Math.max(es, f);
+    }
+    const plannedEf = es + dur(t);
+    const cl = closedLateness(t, { startIso, idx: es });
+    const ef = cl.late ? Math.max(plannedEf, closeIdxOf(t.sinceDate, startIso) + 1) : plannedEf;
+    out.set(id, { es, ef, ...cl });
+  }
+  return out;
 }
 
 export interface TaskPlan {
@@ -130,7 +174,8 @@ export function dependencySchedule(tasks: Task[], startIso: string, opts: Option
   const closedFinish = new Map<string, number>();
   if (!opts.includeClosed) {
     const planned = dependencySchedule(tasks, startIso, { includeClosed: true, ignoreLate: true, durations: opts.durations });
-    for (const t of tasks) if (isClosed(t)) closedFinish.set(t.id, finishIdxOf(t, planned.plans.get(t.id)?.ef ?? 0, startIso));
+    const openEf = new Map([...planned.plans].map(([id, p]) => [id, p.ef]));
+    for (const [id, c] of closedChain(tasks, startIso, (t) => opts.durations?.get(t.id) ?? t.duration, openEf)) closedFinish.set(id, c.ef);
   }
 
   const es = new Map<string, number>();
@@ -144,7 +189,7 @@ export function dependencySchedule(tasks: Task[], startIso: string, opts: Option
       else if (closedFinish.has(b)) start = Math.max(start, closedFinish.get(b)!);
     }
     es.set(id, start);
-    const l = opts.ignoreLate ? { late: false, lateWd: 0 } : lateness(t, today, start <= lastWorkday);
+    const l = opts.ignoreLate ? { late: false, lateWd: 0 } : lateness(t, today, start <= lastWorkday, { startIso, idx: start });
     lateOf.set(id, l);
     ef.set(id, l.late ? Math.max(start, lastWorkday + 1) : start + dur(id));
   }
@@ -617,14 +662,13 @@ export function closedPlanMap(
   startIso: string,
 ): Map<string, { start: string; end: string; late: boolean; lateWd: number }> {
   const planned = dependencySchedule(tasks, startIso, { includeClosed: true, ignoreLate: true });
+  const openEf = new Map([...planned.plans].map(([id, p]) => [id, p.ef]));
+  const chain = closedChain(tasks, startIso, (t) => t.duration, openEf);
   const out = new Map<string, { start: string; end: string; late: boolean; lateWd: number }>();
-  for (const t of tasks) {
-    if (!isClosed(t)) continue;
-    const p = planned.plans.get(t.id);
-    if (!p) continue;
-    const fin = finishIdxOf(t, p.ef, startIso);
-    const end = fin > p.es ? workdayDate(startIso, fin - 1) : p.start;
-    out.set(t.id, { start: p.start, end, ...closedLateness(t) });
+  for (const [id, c] of chain) {
+    const start = workdayDate(startIso, c.es);
+    const end = c.ef > c.es ? workdayDate(startIso, c.ef - 1) : start;
+    out.set(id, { start, end, late: c.late, lateWd: c.lateWd });
   }
   return out;
 }
