@@ -165,7 +165,7 @@ test('downstream walks open successors only', () => {
 test('priority level follows the distance from today, and open struggles raise it', () => {
   const today = '2026-01-07'; // Wednesday
   const plan = (start: string, end: string) => ({
-    id: 'x', es: 0, ef: 1, ls: 0, lf: 1, slack: 0, critical: false, start, end, late: false, lateWd: 0,
+    id: 'x', es: 0, ef: 1, ls: 0, lf: 1, slack: 0, critical: false, start, end, late: false, lateWd: 0, lateFrom: null,
   });
   const t = task({ id: 'x', deadline: '2026-02-27' });
   const struggle = (n: number) =>
@@ -192,9 +192,9 @@ test('late tasks are always the top priority level, and open struggles do not ch
 
 test('late: deadline strictly before today, working days after the deadline', () => {
   const today = '2026-01-12'; // Monday
-  assert.deepEqual(lateness(task({ id: 'a', deadline: '2026-01-12', status: 'in_progress' }), today), { late: false, lateWd: 0 });
-  assert.deepEqual(lateness(task({ id: 'b', deadline: '2026-01-07', status: 'in_progress' }), today), { late: true, lateWd: 3 });
-  assert.deepEqual(lateness(task({ id: 'c', deadline: '2026-01-07', status: 'closed' }), today), { late: false, lateWd: 0 });
+  assert.deepEqual(lateness(task({ id: 'a', deadline: '2026-01-12', status: 'in_progress' }), today), { late: false, lateWd: 0, lateFrom: null });
+  assert.deepEqual(lateness(task({ id: 'b', deadline: '2026-01-07', status: 'in_progress' }), today), { late: true, lateWd: 3, lateFrom: '2026-01-07' });
+  assert.deepEqual(lateness(task({ id: 'c', deadline: '2026-01-07', status: 'closed' }), today), { late: false, lateWd: 0, lateFrom: null });
 });
 
 test('a late predecessor pushes each successor by its late working days, once, and closed predecessors push nothing', () => {
@@ -355,7 +355,7 @@ test('closed late: the task shows its late days, and successors do not move left
 
   const closed = closedPlanMap(tasks, START).get('a')!;
   assert.deepEqual({ late: closed.late, lateWd: closed.lateWd, end: closed.end }, { late: true, lateWd: 3, end: '2026-01-09' });
-  assert.deepEqual(closedLateness(task({ id: 'c', status: 'closed', deadline: '2026-01-09', sinceDate: '2026-01-09' })), { late: false, lateWd: 0 }, 'closed on the deadline is on time');
+  assert.deepEqual(closedLateness(task({ id: 'c', status: 'closed', deadline: '2026-01-09', sinceDate: '2026-01-09' })), { late: false, lateWd: 0, lateFrom: null }, 'closed on the deadline is on time');
 });
 
 test('late days count only from when the task could start, not while it waited for late predecessors', () => {
@@ -369,6 +369,18 @@ test('late days count only from when the task could start, not while it waited f
   assert.deepEqual({ late: later.late, lateWd: later.lateWd, start: later.start, end: later.end }, { late: true, lateWd: 1, start: '2026-01-12', end: '2026-01-13' });
   const firstDay = closedPlanMap(tasks('2026-01-12'), START).get('b')!;
   assert.deepEqual({ late: firstDay.late, lateWd: firstDay.lateWd, end: firstDay.end }, { late: false, lateWd: 0, end: '2026-01-12' }, 'closed on its first day: bar ends that day, not late');
+});
+
+test('a task pushed past its deadline is late only after its own window, not from the deadline', () => {
+  // a (closed on time) runs Mon 5 - Wed 7 Jan. b waits for a, so it runs Thu 8 - Mon 12 Jan (3 days). Its deadline Tue 6 Jan has passed.
+  const tasks = [
+    task({ id: 'a', duration: 3, deadline: '2026-01-07', status: 'closed', sinceDate: '2026-01-07' }),
+    task({ id: 'b', duration: 3, deadline: '2026-01-06', blockedBy: ['a'] }),
+  ];
+  const onWindow = dependencySchedule(tasks, START, { today: '2026-01-12' }).plans.get('b')!;
+  assert.equal(onWindow.late, false, 'still inside its own window on Mon 12 Jan');
+  const late = dependencySchedule(tasks, START, { today: '2026-01-13' }).plans.get('b')!;
+  assert.deepEqual({ late: late.late, lateWd: late.lateWd, lateFrom: late.lateFrom }, { late: true, lateWd: 1, lateFrom: '2026-01-12' });
 });
 
 test('a Closed task waits for an open blocker, like an open task does', () => {
