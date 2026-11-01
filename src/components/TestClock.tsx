@@ -11,7 +11,7 @@ const TAB_KEY = 'golden-test-clock-tab';
 
 /**
  * Test clock controls (shown in the header). `date` is the test date, or null in real time.
- * Reloading the page, or opening the app in a new tab, turns the test clock off.
+ * Reloading the page keeps the test clock. Closing the tab, opening the app in a new tab, or turning it off ends it.
  */
 export function TestClock({ date }: { date: string | null }) {
   const router = useRouter();
@@ -22,14 +22,14 @@ export function TestClock({ date }: { date: string | null }) {
 
   useEffect(() => {
     if (!date) return;
-    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    // The tab marker survives a reload but not closing the tab, so a new tab starts in real time
     let started = false;
     try {
       started = sessionStorage.getItem(TAB_KEY) === '1';
     } catch {
       started = false;
     }
-    if (nav?.type === 'reload' || !started) {
+    if (!started) {
       startTransition(async () => {
         await exitTestClock();
         router.refresh();
@@ -70,7 +70,7 @@ export function TestClock({ date }: { date: string | null }) {
       {date && (
         <div className="test-clock-bar">
           <strong>TEST CLOCK: {formatDate(date)}</strong>
-          <span>Status changes are not saved. Reloading the page returns to real time.</span>
+          <span>Status changes are not saved. Closing the tab or turning the clock off returns to real time.</span>
           <button type="button" className="tc-link" onClick={() => setOpen((o) => !o)} disabled={pending}>
             Change date
           </button>

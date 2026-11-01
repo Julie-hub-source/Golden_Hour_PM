@@ -6,7 +6,7 @@ import type { Status, Task } from './types';
 /**
  * Test clock: pretend today is another date, to try the app without waiting. Only a status change can be
  * made while it is on, and it is kept in this cookie, not the database. The cookie has no expiry date, so
- * it ends when the browser session ends. The page also turns it off on reload (see TestClock).
+ * it ends when the browser session ends. A new tab turns it off (see TestClock); a reload keeps it.
  */
 export const CLOCK_COOKIE = 'golden_test_clock';
 export const MAX_CLOCK_CHANGES = 40;

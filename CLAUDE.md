@@ -344,7 +344,7 @@ Delivery: in-app only for now [DEFAULT].
 - Start date can be any calendar date. Index 0 is the first working day on or after it.
 - No public holidays.
 - Timezone for "today": Asia/Ho_Chi_Minh [DEFAULT].
-- **Test clock** (header, off by default): pretends today is another date, for testing without waiting. While it is on, only task status can be changed, and changes are kept in a session cookie, not the database: no notifications, no log, no alerts are written. Reloading the page or opening the app in a new tab turns it off, and every task returns to its real status. All date logic uses the test date while it is on.
+- **Test clock** (header, off by default): pretends today is another date, for testing without waiting. While it is on, only task status can be changed, and changes are kept in a session cookie, not the database: no notifications, no log, no alerts are written. Reloading the page keeps it on. Closing the tab, opening the app in a new tab, or turning it off ends it, and every task returns to its real status. All date logic uses the test date while it is on.
 
 ---
 
