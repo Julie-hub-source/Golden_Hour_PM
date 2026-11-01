@@ -114,7 +114,7 @@ Creation rules:
 | environment | enum | `UAT`, `STG`, `Prod`. Explicit, not derived |
 | role | enum | role the task was designed for. Blank for custom tasks |
 | pic | member id or null | any project member |
-| status | enum | `todo`, `in_progress`, `closed`. Labels: To do, In progress, Closed |
+| status | enum | `todo`, `in_progress`, `closed`. Labels: To do, In progress, Done (the value `closed` is shown as Done) |
 | duration | int 0–20 | working days |
 | deadline | date | planned end for this task (inclusive) |
 | blockedBy | list of task ids | depends on: must not create a cycle |

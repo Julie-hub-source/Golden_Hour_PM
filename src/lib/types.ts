@@ -10,7 +10,7 @@ export type Status = (typeof STATUSES)[number];
 export const STATUS_LABEL: Record<Status, string> = {
   todo: 'To do',
   in_progress: 'In progress',
-  closed: 'Closed',
+  closed: 'Done',
 };
 
 export const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest'] as const;
