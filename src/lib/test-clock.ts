@@ -15,8 +15,8 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 export interface TestClock {
   /** The pretended today, YYYY-MM-DD. */
   date: string;
-  /** Status changes made while the clock is on, by task id. */
-  statuses: Record<string, Status>;
+  /** Status changes made while the clock is on, by task id. `date` is the test date of the change, so moving the clock later does not move it. */
+  statuses: Record<string, { status: Status; date: string }>;
 }
 
 /** The test clock for this browser, or null in real time. Also null outside a request (e.g. the daily cron). */
@@ -49,10 +49,10 @@ export async function writeTestClock(clock: TestClock | null): Promise<void> {
 /** Tasks with their test-clock status. A changed task is dated to the test date, as a real status change would be. */
 export function applyTestClock(tasks: Task[], clock: TestClock): Task[] {
   return tasks.map((t) => {
-    const status = clock.statuses[t.id];
-    if (!status) return t;
-    // Closing a task solves its struggles, as the real change does
-    const issues = status === 'closed' ? t.issues.map((i) => (i.solvedAt ? i : { ...i, solvedAt: clock.date })) : t.issues;
-    return { ...t, status, sinceDate: clock.date, issues, blocked: issues.some((i) => !i.solvedAt) };
+    const change = clock.statuses[t.id];
+    if (!change) return t;
+    // Closing a task solves its struggles on the day it was closed, as the real change does
+    const issues = change.status === 'closed' ? t.issues.map((i) => (i.solvedAt ? i : { ...i, solvedAt: change.date })) : t.issues;
+    return { ...t, status: change.status, sinceDate: change.date, issues, blocked: issues.some((i) => !i.solvedAt) };
   });
 }

@@ -568,7 +568,7 @@ export async function updateTask(fd: FormData): Promise<ActionResult> {
     if (clock) {
       // Test clock: only a status change, kept in the cookie. Nothing reaches the database, notifications or the log.
       if (!('status' in patch) || changes.some((c) => c.field !== 'status')) throw new UserError(TEST_CLOCK_BLOCKED);
-      const statuses = { ...clock.statuses, [task.id]: patch.status as Status };
+      const statuses = { ...clock.statuses, [task.id]: { status: patch.status as Status, date: clock.date } };
       if (Object.keys(statuses).length > MAX_CLOCK_CHANGES) {
         throw new UserError(`The test clock can hold up to ${MAX_CLOCK_CHANGES} status changes. Exit it to clear them.`);
       }
