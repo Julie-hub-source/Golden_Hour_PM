@@ -21,6 +21,28 @@ export function lateness(
   return { late: true, lateWd: workdaysAfter(task.deadline, today) };
 }
 
+/**
+ * Closed tasks (7.6): a task closed after its deadline is late by the working days from the deadline to the
+ * day it was closed (`sinceDate` is the date of the last status change, i.e. the close date).
+ */
+export function closedLateness(task: Pick<Task, 'status' | 'deadline' | 'sinceDate'>): { late: boolean; lateWd: number } {
+  if (!isClosed(task) || task.sinceDate <= task.deadline) return { late: false, lateWd: 0 };
+  return { late: true, lateWd: workdaysAfter(task.deadline, task.sinceDate) };
+}
+
+/**
+ * Exclusive working-day index where a task ends on the dependency schedule. A late Closed task ends on the
+ * day it was closed, so its successors stay where they were; a task on time keeps its planned finish.
+ */
+export function finishIdxOf(task: Pick<Task, 'status' | 'deadline' | 'sinceDate'>, plannedEf: number, startIso: string): number {
+  const cl = closedLateness(task);
+  if (!cl.late) return plannedEf;
+  // A close on a weekend counts as the Friday before it, as with lastWorkday
+  const closeDay = task.sinceDate;
+  const closeIdx = isWeekend(closeDay) ? workIndex(startIso, closeDay) - 1 : workIndex(startIso, closeDay);
+  return Math.max(plannedEf, closeIdx + 1);
+}
+
 export interface TaskPlan {
   id: string;
   /** Dependency-schedule indices (working days from project start). ef is the projected finish. */
@@ -103,12 +125,12 @@ export function dependencySchedule(tasks: Task[], startIso: string, opts: Option
   const today = opts.today ?? todayIso();
   const lastWorkday = isWeekend(today) ? workIndex(startIso, today) - 1 : workIndex(startIso, today);
 
-  // A Closed predecessor does not delay its successors, but an open successor still starts after the
-  // planned finish of its Closed predecessors. Without this, the successor would start at project day 0.
+  // A Closed predecessor does not delay its successors beyond the day it actually finished (its close day if it
+  // closed late). An open successor still starts after that finish. Without this, the successor would start at day 0.
   const closedFinish = new Map<string, number>();
   if (!opts.includeClosed) {
     const planned = dependencySchedule(tasks, startIso, { includeClosed: true, ignoreLate: true, durations: opts.durations });
-    for (const t of tasks) if (isClosed(t)) closedFinish.set(t.id, planned.plans.get(t.id)?.ef ?? 0);
+    for (const t of tasks) if (isClosed(t)) closedFinish.set(t.id, finishIdxOf(t, planned.plans.get(t.id)?.ef ?? 0, startIso));
   }
 
   const es = new Map<string, number>();
@@ -235,7 +257,7 @@ export function happyCase(
     const present = envTasks.length > 0;
     if (open.length === 0) {
       // Finished environment: show the planned dates of its tasks, and later environments start after them
-      const dates = envTasks.map((t) => plannedClosed.get(t.id)).filter((d): d is { start: string; end: string } => !!d);
+      const dates = envTasks.map((t) => plannedClosed.get(t.id)).filter((d): d is { start: string; end: string; late: boolean; lateWd: number } => !!d);
       const start = dates.length ? dates.map((d) => d.start).reduce((a, b) => (a < b ? a : b)) : null;
       const completion = dates.length ? dates.map((d) => d.end).reduce((a, b) => (a > b ? a : b)) : null;
       if (completion) cursor = Math.max(cursor, workIndex(startIso, completion) + 1);
@@ -587,16 +609,22 @@ export function lateMap(schedule: DependencySchedule): Map<string, number> {
 }
 
 /**
- * Planned dates of Closed tasks, for the timeline (no late shifts). Closed tasks are not part of the
- * live schedule, so their dates come from a planned pass over every task.
+ * Dates of Closed tasks, for the timeline. Closed tasks are not part of the live schedule, so their planned
+ * dates come from a planned pass over every task. A task closed late ends on its close day (7.6), and carries its late days.
  */
-export function closedPlanMap(tasks: Task[], startIso: string): Map<string, { start: string; end: string }> {
+export function closedPlanMap(
+  tasks: Task[],
+  startIso: string,
+): Map<string, { start: string; end: string; late: boolean; lateWd: number }> {
   const planned = dependencySchedule(tasks, startIso, { includeClosed: true, ignoreLate: true });
-  const out = new Map<string, { start: string; end: string }>();
+  const out = new Map<string, { start: string; end: string; late: boolean; lateWd: number }>();
   for (const t of tasks) {
     if (!isClosed(t)) continue;
     const p = planned.plans.get(t.id);
-    if (p) out.set(t.id, { start: p.start, end: p.end });
+    if (!p) continue;
+    const fin = finishIdxOf(t, p.ef, startIso);
+    const end = fin > p.es ? workdayDate(startIso, fin - 1) : p.start;
+    out.set(t.id, { start: p.start, end, ...closedLateness(t) });
   }
   return out;
 }

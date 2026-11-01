@@ -41,7 +41,7 @@ create table if not exists tasks (
   environment text not null check (environment in ('UAT','STG','Prod')),
   role        text check (role in ('PM','PO','BA','Designer','FE','BE','QC')),
   pic_id      uuid references members(id) on delete set null,
-  status      text not null default 'todo' check (status in ('todo','in_progress','uat','stg','prod','closed')),
+  status      text not null default 'todo' check (status in ('todo','in_progress','closed')),
   duration    integer not null default 0 check (duration between 0 and 20),
   deadline    date not null,
   description text not null default '',

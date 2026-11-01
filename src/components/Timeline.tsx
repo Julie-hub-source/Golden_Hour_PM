@@ -43,18 +43,18 @@ export function Timeline({
   tasks: Task[];
   members: Member[];
   schedule: DependencySchedule;
-  /** Planned dates of Closed tasks (no late shifts), so the whole project shows from start to end. */
-  closedPlans: Map<string, { start: string; end: string }>;
+  /** Dates of Closed tasks, so the whole project shows from start to end. A task closed late ends on its close day. */
+  closedPlans: Map<string, { start: string; end: string; late: boolean; lateWd: number }>;
   commitProd: string;
 }) {
-  // Open tasks use the live schedule; Closed tasks show their planned dates, greyed out
+  // Open tasks use the live schedule; Closed tasks show their dates, greyed out
   const open = tasks.filter((t) => !isClosed(t) && schedule.plans.has(t.id));
   const done = tasks.filter((t) => isClosed(t) && closedPlans.has(t.id));
   const shown = [...open, ...done];
   if (shown.length === 0) return <div className="card"><p className="muted">No tasks yet.</p></div>;
   const planOf = (t: Task) =>
     isClosed(t)
-      ? { start: closedPlans.get(t.id)!.start, end: closedPlans.get(t.id)!.end, critical: false, late: false, lateWd: 0 }
+      ? { ...closedPlans.get(t.id)!, critical: false }
       : schedule.plans.get(t.id)!;
 
   const today = todayIso();
@@ -184,12 +184,12 @@ export function Timeline({
                         // Split the bar at the deadline: person's colour up to it, red stripes after it
                         const dl = task.deadline;
                         // A task that has not started yet has no stripes: it is not late, and its colour stays normal
-                        // Finished tasks are plain grey, with no stripes
+                        // Finished tasks have no stripes, unless they were closed late: the stripes then cover the late days
                         const started = start <= today;
                         const colourEnd = !started ? end : dl < end ? dl : end;
                         const colourDays = started && dl < start ? 0 : diffDays(start, colourEnd) + 1;
                         const stripeFrom = started && dl >= start ? addDays(dl, 1) : start;
-                        const stripeDays = !finished && started && end >= stripeFrom ? diffDays(stripeFrom, end) + 1 : 0;
+                        const stripeDays = (!finished || p.late) && started && end >= stripeFrom ? diffDays(stripeFrom, end) + 1 : 0;
                         const colourW = stripeDays === 0 ? w : colourDays === 0 ? 0 : colourDays * DW - 1;
                         const stripeW = w - colourW;
                         const barColour = colour;

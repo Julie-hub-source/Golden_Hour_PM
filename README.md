@@ -58,8 +58,8 @@ Every date in the app uses one format: weekday, then day/month/year, with no zer
 
 ### Tasks, dependencies and status
 - **Depends on** means one task must finish before another can start.
-- **Status** is one of To do, In progress, In test (UAT), In test (STG), In test (Prod), or Closed.
-- **Closed** tasks keep their planned dates and do not hold up the tasks after them.
+- **Status** is one of To do, In progress, or Closed.
+- **Closed** tasks keep their planned dates and do not hold up the tasks after them. If a task was closed after its deadline, its late days show on the timeline and the tasks after it stay where they are.
 
 ### Struggles (🔥)
 A **struggle** is something outside the team's control that holds a task up, such as a vendor API that has not arrived. Each struggle has a reason and appears as a 🔥 on the Task Board, the Gantt chart and the dependency tree.

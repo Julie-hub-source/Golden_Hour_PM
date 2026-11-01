@@ -69,7 +69,7 @@ Notes:
 - **Duration**: whole working days, integer 0–20 in the UI. Zero means the task takes no time. (Half days: [DEFAULT] not supported.)
 - **Depends on**: an upstream task that must finish before this task can start. Stored as a list of task IDs (field `blockedBy`). Use "depends on" only for task-to-task links.
 - **Struggle**: something outside the team's control that holds a task up (for example, a vendor API not delivered). It needs a reason. A task can have many struggles. Each one is shown as a flame 🔥 on the timeline, the dependency tree and the board. Marking it solved crosses the flame out. A task is **blocked** while it has at least one unsolved struggle.
-- **Closed**: final status. A closed task takes 0 days and does not block its successors.
+- **Closed**: final status. A closed task does not block its successors beyond the day it actually finished. If it was closed late (after its deadline), it ends on its close day, so its late days show on the timeline and its successors stay where they were, never moving left.
 - **Today**: the real system date in the project's timezone, **Asia/Ho_Chi_Minh** [DEFAULT]. Not user-editable.
 
 ---
@@ -114,7 +114,7 @@ Creation rules:
 | environment | enum | `UAT`, `STG`, `Prod`. Explicit, not derived |
 | role | enum | role the task was designed for. Blank for custom tasks |
 | pic | member id or null | any project member |
-| status | enum | `todo`, `in_progress`, `uat`, `stg`, `prod`, `closed`. Labels: To do, In progress, In test (UAT), In test (STG), In test (Prod), Closed |
+| status | enum | `todo`, `in_progress`, `closed`. Labels: To do, In progress, Closed |
 | duration | int 0–20 | working days |
 | deadline | date | planned end for this task (inclusive) |
 | blockedBy | list of task ids | depends on: must not create a cycle |
@@ -126,7 +126,7 @@ Creation rules:
 | alerts | set | alerts already sent for this task: `late`, `todo`. Reset when status or deadline changes |
 
 Notes:
-- Status and environment are independent. A task in environment UAT can have status "In test (STG)". Allow it and do not auto-correct.
+- Status and environment are independent. Status only says whether the task is to do, in progress or closed. Environment says where in the flow it sits.
 - Outputs are **links only** (URL). No file upload and no file storage. The link is validated as an absolute http(s) URL.
 - Deleting a task removes it from other tasks' blockedBy lists. Its outputs are deleted with it [DEFAULT].
 
@@ -153,7 +153,7 @@ Work on a working-day index: index 0 is the first working day on or after the pr
 - For each open task `t`:
   - `ES(t) = max(EF(d))` over active dependencies `d`; 0 if none
   - `EF(t) = ES(t) + duration(t)` (exclusive index)
-- Closed tasks do not delay their successors. An open task still starts after the planned finish of its Closed predecessors (the date the Closed task was planned to finish), not on project day 0.
+- Closed tasks do not delay their successors. An open task still starts after the finish of its Closed predecessors (the date the Closed task was planned to finish, or its close day if it closed late, 7.6), not on project day 0.
 - `finishIdx = max(EF)`.
 - Backward pass: `LF(t) = min(LS(s))` over open successors `s`, or `finishIdx` if none; `LS(t) = LF(t) − duration(t)`; `slack(t) = LF(t) − EF(t)`.
 - A task is **on the critical path** when it is open and `slack ≤ 0`.
@@ -230,7 +230,7 @@ Used for: the environment timeline table and the client commitment comparison.
 - Each bar is split at the deadline: the person's colour up to the deadline, then red diagonal stripes (background #FCEBEB, stripes #E24B4A at about 45% opacity, 45°) from the day after the deadline to the projected finish. Any task pushed past its own deadline shows stripes, late or not. A late task also shows a small "Late" tag. A task that has not started yet (its start is after today) is drawn in its normal colour, with no stripes and no Late tag, even if its deadline has passed.
 - Marks: critical path (amber outline), open struggle (red outline, one 🔥 per struggle, crossed out when solved), dashed red line at the Prod commit date, solid blue line at today's date (Asia/Ho_Chi_Minh) labelled "Today".
 - **Weekends** (Saturday and Sunday) are shaded grey in every lane. No task occupies a weekend.
-- Horizontal scrolling. Fixed width per calendar day (26 px). Lane labels stay visible while scrolling. A date label appears at every Monday (app date format, section 14). The timeline shows the whole project from the first task to the last: Closed tasks are included, greyed out with a tick, and use their planned dates.
+- Horizontal scrolling. Fixed width per calendar day (26 px). Lane labels stay visible while scrolling. A date label appears at every Monday (app date format, section 14). The timeline shows the whole project from the first task to the last: Closed tasks are included, greyed out with a tick, and use their planned dates. A Closed task that was closed late ends on its close day, with red stripes for its late days and a Late tag.
 - **Size follows the content.** The timeline has one lane per person, so its height grows and shrinks with the team size. Its width grows and shrinks with the plan length (from the Monday on or before the earliest date, including today, to a week after the latest date, including the Prod commit). No fixed height, and no extra padding below the lanes.
 - The hover card is drawn above the page, so it is never clipped by the scroll area.
 

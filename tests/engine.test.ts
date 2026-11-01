@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { workdayDate, workdaysAfter, parseDateInput, isWeekend, workdaysBetween, formatDate, todayIso } from '../src/lib/calendar';
-import { dependencySchedule, happyCase, simulateProd, canAddBlocker, downstreamIds, whatIf, completeDate, sampleTriangular, priorityOf, lateness } from '../src/lib/schedule';
+import { dependencySchedule, happyCase, simulateProd, canAddBlocker, downstreamIds, whatIf, completeDate, sampleTriangular, priorityOf, lateness, closedPlanMap, closedLateness } from '../src/lib/schedule';
 import { dueAlerts, alertMessage } from '../src/lib/alerts';
 import { buildDefaultFlow } from '../src/lib/project-setup';
 import { can } from '../src/lib/permissions';
@@ -341,6 +341,21 @@ test('environment completion is the last assigned task; unassigned tasks do not 
   ];
   const hc = happyCase(tasks, START);
   assert.equal(hc.envs[0].completion, '2026-01-06', 'a ends Tue 6 Jan; unassigned b (ends Thu 8 Jan) is ignored');
+});
+
+test('closed late: the task shows its late days, and successors do not move left', () => {
+  // a: deadline Tue 6 Jan, closed Fri 9 Jan (3 working days late). b depends on a.
+  const tasks = [
+    task({ id: 'a', duration: 2, deadline: '2026-01-06', status: 'closed', sinceDate: '2026-01-09' }),
+    task({ id: 'b', duration: 2, deadline: '2026-01-20', blockedBy: ['a'] }),
+  ];
+  const today = '2026-01-12';
+  const s = dependencySchedule(tasks, START, { today });
+  assert.equal(s.plans.get('b')!.start, '2026-01-12', 'b starts the working day after the close day, not on its planned day');
+
+  const closed = closedPlanMap(tasks, START).get('a')!;
+  assert.deepEqual({ late: closed.late, lateWd: closed.lateWd, end: closed.end }, { late: true, lateWd: 3, end: '2026-01-09' });
+  assert.deepEqual(closedLateness(task({ id: 'c', status: 'closed', deadline: '2026-01-09', sinceDate: '2026-01-09' })), { late: false, lateWd: 0 }, 'closed on the deadline is on time');
 });
 
 test('task deletion can be turned off per project, for everyone including PM', () => {
