@@ -369,6 +369,16 @@ test('late days count only from when the task could start, not while it waited f
   assert.deepEqual({ late: b.late, lateWd: b.lateWd, start: b.start }, { late: true, lateWd: 1, start: '2026-01-12' });
 });
 
+test('a Closed task waits for an open blocker, like an open task does', () => {
+  // a is open (3 days) and runs Mon-Wed. b is Closed and depends on a, so it cannot finish before a does.
+  const tasks = [
+    task({ id: 'a', duration: 3, deadline: '2026-01-20' }),
+    task({ id: 'b', duration: 1, deadline: '2026-01-06', status: 'closed', sinceDate: '2026-01-05', blockedBy: ['a'] }),
+  ];
+  const closed = closedPlanMap(tasks, START, '2026-01-05').get('b')!;
+  assert.equal(closed.start, '2026-01-08', 'starts the working day after a finishes (Thu 8 Jan)');
+});
+
 test('task deletion can be turned off per project, for everyone including PM', () => {
   const pm = { id: 'pm', role: 'PM' as const, name: 'pm' };
   const members = new Set(['pm']);

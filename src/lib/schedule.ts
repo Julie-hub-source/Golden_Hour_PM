@@ -103,6 +103,16 @@ export interface TaskPlan {
   lateWd: number;
 }
 
+/** Dates of a Closed task on the chain. A late Closed task ends on its close day (7.6). */
+export interface ClosedPlan {
+  es: number;
+  ef: number;
+  start: string;
+  end: string;
+  late: boolean;
+  lateWd: number;
+}
+
 export interface DependencySchedule {
   plans: Map<string, TaskPlan>;
   /** Exclusive index where the last open task finishes. */
@@ -111,6 +121,8 @@ export interface DependencySchedule {
   finishDate: string;
   /** Complete date (7.3): all tasks at planned duration, regardless of status. Computed by `completeDate`. */
   completeDate: string;
+  /** Closed tasks on the same chain (their dates for the timeline). Empty with includeClosed. */
+  closed: Map<string, ClosedPlan>;
 }
 
 interface Options {
@@ -122,6 +134,8 @@ interface Options {
   today?: string;
   /** Plan with no late shifts (planned dates, e.g. the complete date or a new task's default deadline). */
   ignoreLate?: boolean;
+  /** Finish index of each Closed task, as the open tasks see it. Set internally by dependencySchedule. */
+  closedFinish?: Map<string, number>;
 }
 
 /** Topological order: blockers come before the tasks they gate. Ignores edges to tasks outside `ids`. */
@@ -143,8 +157,38 @@ function topoOrder(ids: Set<string>, blockedBy: (id: string) => string[]): strin
 /**
  * Dependency schedule (7.1). Only active blockers (not closed) gate a task.
  * With includeClosed, every task counts (7.3).
+ *
+ * Open and Closed tasks can wait for each other (a Closed task may depend on an open one). So the open schedule
+ * and the Closed chain are repeated until they agree.
  */
 export function dependencySchedule(tasks: Task[], startIso: string, opts: Options = {}): DependencySchedule {
+  if (opts.includeClosed || opts.closedFinish) return scheduleOnce(tasks, startIso, opts);
+
+  const durFn = (t: Task) => opts.durations?.get(t.id) ?? t.duration;
+  const efOf = (r: DependencySchedule) => new Map([...r.plans].map(([id, p]) => [id, p.ef]));
+  const finishFrom = (openEf: Map<string, number>) =>
+    new Map([...closedChain(tasks, startIso, durFn, openEf)].map(([id, c]) => [id, c.ef]));
+
+  const planned = scheduleOnce(tasks, startIso, { includeClosed: true, ignoreLate: true, durations: opts.durations });
+  let openEf = new Map([...planned.plans].map(([id, p]) => [id, p.ef]));
+  let result = scheduleOnce(tasks, startIso, { ...opts, closedFinish: finishFrom(openEf) });
+  for (let i = 0; i < 5; i++) {
+    const next = efOf(result);
+    if (next.size === openEf.size && [...next].every(([id, ef]) => openEf.get(id) === ef)) break;
+    openEf = next;
+    result = scheduleOnce(tasks, startIso, { ...opts, closedFinish: finishFrom(openEf) });
+  }
+
+  const chain = closedChain(tasks, startIso, durFn, efOf(result));
+  for (const [id, c] of chain) {
+    const start = workdayDate(startIso, c.es);
+    const end = c.ef > c.es ? workdayDate(startIso, c.ef - 1) : start;
+    result.closed.set(id, { es: c.es, ef: c.ef, start, end, late: c.late, lateWd: c.lateWd });
+  }
+  return result;
+}
+
+function scheduleOnce(tasks: Task[], startIso: string, opts: Options): DependencySchedule {
   const active = tasks.filter((t) => opts.includeClosed || !isClosed(t));
   const byId = new Map(active.map((t) => [t.id, t]));
   const ids = new Set(byId.keys());
@@ -171,12 +215,8 @@ export function dependencySchedule(tasks: Task[], startIso: string, opts: Option
 
   // A Closed predecessor does not delay its successors beyond the day it actually finished (its close day if it
   // closed late). An open successor still starts after that finish. Without this, the successor would start at day 0.
-  const closedFinish = new Map<string, number>();
-  if (!opts.includeClosed) {
-    const planned = dependencySchedule(tasks, startIso, { includeClosed: true, ignoreLate: true, durations: opts.durations });
-    const openEf = new Map([...planned.plans].map(([id, p]) => [id, p.ef]));
-    for (const [id, c] of closedChain(tasks, startIso, (t) => opts.durations?.get(t.id) ?? t.duration, openEf)) closedFinish.set(id, c.ef);
-  }
+  // Finish of each Closed task, as computed by dependencySchedule (empty with includeClosed)
+  const closedFinish = new Map(opts.closedFinish ?? []);
 
   const es = new Map<string, number>();
   const ef = new Map<string, number>();
@@ -231,7 +271,7 @@ export function dependencySchedule(tasks: Task[], startIso: string, opts: Option
   }
 
   const finishDate = finishIdx > 0 ? workdayDate(startIso, finishIdx - 1) : startIso;
-  return { plans, finishIdx, finishDate, completeDate: finishDate };
+  return { plans, finishIdx, finishDate, completeDate: finishDate, closed: new Map() };
 }
 
 /** Complete date (7.3): start + longest chain of working days, all tasks at planned duration. */
@@ -289,7 +329,7 @@ export function happyCase(
 ): HappyCase {
   const dur = (t: Task) => durations?.get(t.id) ?? t.duration;
   const sorted = [...tasks].sort((a, b) => a.sortOrder - b.sortOrder);
-  const plannedClosed = closedPlanMap(tasks, startIso);
+  const plannedClosed = plan ? plan.closed : closedPlanMap(tasks, startIso);
   const envs: EnvPlan[] = [];
   const taskDates = new Map<string, { start: string; end: string }>();
   // Planned working-day window of every open task, as [s, e) indices (e exclusive)
@@ -302,7 +342,7 @@ export function happyCase(
     const present = envTasks.length > 0;
     if (open.length === 0) {
       // Finished environment: show the planned dates of its tasks, and later environments start after them
-      const dates = envTasks.map((t) => plannedClosed.get(t.id)).filter((d): d is { start: string; end: string; late: boolean; lateWd: number } => !!d);
+      const dates = envTasks.map((t) => plannedClosed.get(t.id)).filter((d): d is ClosedPlan => !!d);
       const start = dates.length ? dates.map((d) => d.start).reduce((a, b) => (a < b ? a : b)) : null;
       const completion = dates.length ? dates.map((d) => d.end).reduce((a, b) => (a > b ? a : b)) : null;
       if (completion) cursor = Math.max(cursor, workIndex(startIso, completion) + 1);
@@ -654,21 +694,9 @@ export function lateMap(schedule: DependencySchedule): Map<string, number> {
 }
 
 /**
- * Dates of Closed tasks, for the timeline. Closed tasks are not part of the live schedule, so their planned
- * dates come from a planned pass over every task. A task closed late ends on its close day (7.6), and carries its late days.
+ * Dates of Closed tasks, for the timeline: their place on the same chain as the open tasks (so they wait for
+ * open blockers too). A task closed late ends on its close day (7.6), and carries its late days.
  */
-export function closedPlanMap(
-  tasks: Task[],
-  startIso: string,
-): Map<string, { start: string; end: string; late: boolean; lateWd: number }> {
-  const planned = dependencySchedule(tasks, startIso, { includeClosed: true, ignoreLate: true });
-  const openEf = new Map([...planned.plans].map(([id, p]) => [id, p.ef]));
-  const chain = closedChain(tasks, startIso, (t) => t.duration, openEf);
-  const out = new Map<string, { start: string; end: string; late: boolean; lateWd: number }>();
-  for (const [id, c] of chain) {
-    const start = workdayDate(startIso, c.es);
-    const end = c.ef > c.es ? workdayDate(startIso, c.ef - 1) : start;
-    out.set(id, { start, end, late: c.late, lateWd: c.lateWd });
-  }
-  return out;
+export function closedPlanMap(tasks: Task[], startIso: string, today?: string): Map<string, ClosedPlan> {
+  return dependencySchedule(tasks, startIso, { today }).closed;
 }

@@ -82,7 +82,7 @@ export default async function DashboardPage({ params, searchParams }: { params: 
             tasks={tasks}
             members={members}
             schedule={dependencySchedule(tasks, project.startDate, { today })}
-            closedPlans={closedPlanMap(tasks, project.startDate)}
+            closedPlans={closedPlanMap(tasks, project.startDate, today)}
             commitProd={project.commitProd}
             today={today}
           />
