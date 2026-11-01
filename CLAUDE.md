@@ -204,7 +204,7 @@ Used for: the environment timeline table and the client commitment comparison.
 - **Late task bars end today.** A late task is still running, so its projected finish is today (the last working day on or before today), not later. Its bar covers the start up to today.
 - **Shifted successors.** A task that has not started yet has its start and end moved by the late working days of the tasks before it. It is not late, so it shows no Late tag. If its end passes its own deadline, it shows red stripes.
 - Each successor starts after the projected finish of all its open predecessors. A late predecessor therefore pushes each successor by exactly its late working days, once. The delay is not added again at each step down a chain. Closed predecessors push nothing.
-- The happy-case environment timeline (7.2) and the Monte Carlo (7.4) are not changed by late tasks. Only the dependency schedule (Gantt, dependency tree, what-if, priority) is.
+- The Monte Carlo (7.4) is not changed by late tasks. The Health environment timeline (section 8) and the dependency schedule (Gantt, dependency tree, what-if, priority) both use the late-adjusted dependency schedule, so their completion dates agree.
 
 ---
 
@@ -212,8 +212,8 @@ Used for: the environment timeline table and the client commitment comparison.
 
 - Columns: UAT, STG (only if the project has STG tasks), Prod.
 - Row "0) Start": start of the environment in the happy case (planned start if finished).
-- Row "1) Task completion (projected)": happy-case completion (planned completion if finished).
-- Row "Late (working days)": total late working days of the open tasks in that environment, shown as +N (section 7.6). Late days are added to the environment the task belongs to: its completion moves by the same number, and every following environment moves by the same number.
+- Row "1) Task completion (projected)": completion of the environment's last open task on the dependency schedule (7.1, late-adjusted), so it matches the Gantt. Planned completion if finished.
+- Row "Late (working days)": total late working days of the open tasks in that environment, shown as +N (section 7.6). This is informational: it is already included in the completion above, and is not added again.
 - Row "2) Client commitment": editable date per environment (PM/PO). Saved automatically: picking a day in the calendar, or typing a valid date and leaving the field, saves it. There is no Save button.
 - Dates in these rows use the app date format (see section 14).
 - Row "Buffer": commit minus completion, in working days. Green if buffer, red if late. Shown for finished environments too.

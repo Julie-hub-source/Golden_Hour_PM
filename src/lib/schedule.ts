@@ -209,12 +209,15 @@ export const envsPresent = (tasks: Pick<Task, 'environment'>[]): Environment[] =
  * finished, so parallel tasks overlap. Each environment starts on the working day after the previous one finishes.
  * `late` maps a late task to its late working days (section 7.6). Each environment's late days are
  * added after its tasks, so its completion moves by that many days and so does every later environment.
+ * `plan` (the live dependency schedule) overrides the timing of open tasks, so completion matches the Gantt:
+ * late tasks end today and their successors move once. Late days are then already in the plan, not added again.
  */
 export function happyCase(
   tasks: Task[],
   startIso: string,
   durations?: Map<string, number>,
   late?: Map<string, number>,
+  plan?: DependencySchedule,
 ): HappyCase {
   const dur = (t: Task) => durations?.get(t.id) ?? t.duration;
   const sorted = [...tasks].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -253,13 +256,15 @@ export function happyCase(
     const startIdx = cursor;
     let envEnd = startIdx;
     for (const t of open) {
+      const live = plan?.plans.get(t.id);
       let s = startIdx;
       for (const b of t.blockedBy) {
         const p = planned.get(b);
         if (p) s = Math.max(s, p.e);
       }
       const d = dur(t);
-      const e = s + d;
+      const e = live ? live.ef : s + d;
+      if (live) s = live.es;
       planned.set(t.id, { s, e });
       taskDates.set(t.id, {
         start: workdayDate(startIso, s),
@@ -267,8 +272,8 @@ export function happyCase(
       });
       envEnd = Math.max(envEnd, e);
     }
-    const lateDays = open.reduce((n, t) => n + (late?.get(t.id) ?? 0), 0);
-    cursor = envEnd + lateDays;
+    const lateDays = open.reduce((n, t) => n + (plan ? plan.plans.get(t.id)?.lateWd ?? 0 : late?.get(t.id) ?? 0), 0);
+    cursor = plan ? envEnd : envEnd + lateDays;
     const completion = cursor > startIdx ? workdayDate(startIso, cursor - 1) : workdayDate(startIso, startIdx);
     envs.push({
       env,
@@ -551,7 +556,7 @@ export function whatIf(
   pushed.sort((a, b) => b.days - a.days);
 
   // Happy-case Prod completion with the new duration, for the buffer comparison
-  const hc = happyCase(tasks, startIso, durations, lateMap(base));
+  const hc = happyCase(tasks, startIso, durations, undefined, next);
   const buffer = hc.prodCompletion ? bufferDays(hc.prodCompletion, commitProd) : null;
 
   return {

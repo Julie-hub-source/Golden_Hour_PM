@@ -2,7 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { createHash } from 'node:crypto';
 import { db } from './supabase';
-import { simulateProd, type SimResult, happyCase, healthColor, type HealthColor, completeDate, bufferDays, isClosed, dependencySchedule, lateMap } from './schedule';
+import { simulateProd, type SimResult, happyCase, healthColor, type HealthColor, completeDate, bufferDays, isClosed, dependencySchedule } from './schedule';
 import type { Member, Project, ProjectData, Task, TaskIssue, TaskOutput, Role, Environment, Status, Priority, OutputType } from './types';
 
 /* ---------------- Row types (snake_case from Postgres) ---------------- */
@@ -198,7 +198,8 @@ function simInputHash(data: PortfolioProject): string {
 
 export async function getHealth(data: PortfolioProject): Promise<Health> {
   const { project, tasks } = data;
-  const happy = happyCase(tasks, project.startDate, undefined, lateMap(dependencySchedule(tasks, project.startDate)));
+  // Same timing as the Gantt (dependency schedule), so Task completion matches the timeline
+  const happy = happyCase(tasks, project.startDate, undefined, undefined, dependencySchedule(tasks, project.startDate));
   const hash = simInputHash(data);
 
   let sim: SimResult | null = null;
