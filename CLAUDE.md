@@ -166,7 +166,7 @@ Used for: the environment timeline table and the client commitment comparison.
 - Environments run in order: UAT, then STG (only if the project has STG tasks), then Prod.
 - Within an environment, each open task starts on the first working day after every open task it depends on has finished (the same dependency rule as 7.1). Tasks that do not depend on each other run in parallel, so a step counts once, as its longest task. Closed tasks take no time, but an open task still starts after the planned finish of its closed predecessors.
 - Each environment starts on the working day after the previous environment finishes. The first starts at index 0.
-- Completion of an environment = last working day of its last open task that has a PIC. Unassigned tasks still take time and delay their successors, but they do not set the completion date. If no open task in the environment has a PIC, all of them count. If all its tasks are closed, the environment is finished: it still shows its planned start and completion dates, and its column header reads "UAT (done)". Later environments start after those planned dates.
+- Completion of an environment = last working day of its last open task that has a PIC. Unassigned tasks still take time and delay their successors, but they do not set the completion date. If no open task in the environment has a PIC, all of them count. If all its tasks are closed, the environment is finished: it still shows its start and completion dates (the close day of its last task), and its column header reads "UAT (done)". Later environments start after those planned dates.
 - Closed tasks take no time.
 
 ### 7.3 Complete date (project list)
@@ -197,7 +197,7 @@ Used for: the environment timeline table and the client commitment comparison.
 ### 7.6 Late tasks
 
 - A task is **late** only when all hold: its status is not Closed, its deadline is strictly before today (Asia/Ho_Chi_Minh), and it has started (its projected start is today or earlier). A deadline of today or later is never late. A task that has not started yet is never late, even if its original deadline has passed.
-- **Late working days** = working days after the deadline, up to and including today (or the close day for a Closed task). They are counted only from the day the task could start, that is, after its predecessors finish. Days spent waiting for late predecessors are not counted again, because those predecessors already count their own late days.
+- **Late working days** = working days after the deadline, up to and including today (or the close day for a Closed task). They are counted only from the day after the task could start, that is, after its predecessors finish. The day it starts is not late yet. Days spent waiting for late predecessors are not counted again, because those predecessors already count their own late days.
 - When a task first becomes late, one notification goes to every member of the project:
   `LATE: T04 "Dev back-end UAT" passed its deadline (Mon 13/10/2026) by 4 working day(s). PIC: Binh.`
   It is sent once per task. It is sent again only if the deadline changes or the task is reopened.
@@ -212,7 +212,7 @@ Used for: the environment timeline table and the client commitment comparison.
 
 - Columns: UAT, STG (only if the project has STG tasks), Prod.
 - Row "0) Start": start of the environment in the happy case (planned start if finished).
-- Row "1) Task completion (projected)": completion of the environment's last open task that has a PIC, on the dependency schedule (7.1, late-adjusted), so it matches the Gantt. Planned completion if finished.
+- Row "1) Task completion (projected)": completion of the environment's last open task that has a PIC, on the dependency schedule (7.1, late-adjusted), so it matches the Gantt. Close day of the last task if the environment is finished.
 - Row "Late (working days)": total late working days of the open tasks in that environment, shown as +N (section 7.6). It is the largest late value of any open task in that environment, not the sum: parallel late tasks share the same calendar days (for example, two parallel tasks each 1 day late show +1). It is informational: it is already included in the completion above, and is not added again.
 - Row "2) Client commitment": editable date per environment (PM/PO). Saved automatically: picking a day in the calendar, or typing a valid date and leaving the field, saves it. There is no Save button.
 - Dates in these rows use the app date format (see section 14).
@@ -230,7 +230,7 @@ Used for: the environment timeline table and the client commitment comparison.
 - Each bar is split at the deadline: the person's colour up to the deadline, then red diagonal stripes (background #FCEBEB, stripes #E24B4A at about 45% opacity, 45°) from the day after the deadline to the projected finish. Any task pushed past its own deadline shows stripes, late or not. A late task also shows a small "Late" tag. A task that has not started yet (its start is after today) is drawn in its normal colour, with no stripes and no Late tag, even if its deadline has passed.
 - Marks: critical path (amber outline), open struggle (red outline, one 🔥 per struggle, crossed out when solved), dashed red line at the Prod commit date, solid blue line at today's date (Asia/Ho_Chi_Minh) labelled "Today".
 - **Weekends** (Saturday and Sunday) are shaded grey in every lane. No task occupies a weekend.
-- Horizontal scrolling. Fixed width per calendar day (26 px). Lane labels stay visible while scrolling. A date label appears at every Monday (app date format, section 14). The timeline shows the whole project from the first task to the last: Closed tasks are included, greyed out with a tick, and use their planned dates. A Closed task that was closed late ends on its close day, with red stripes for its late days and a Late tag.
+- Horizontal scrolling. Fixed width per calendar day (26 px). Lane labels stay visible while scrolling. A date label appears at every Monday (app date format, section 14). The timeline shows the whole project from the first task to the last: Closed tasks are included, greyed out with a tick, and use their planned dates. A Closed task ends on its close day. Red stripes and a Late tag show only for its late days.
 - **Size follows the content.** The timeline has one lane per person, so its height grows and shrinks with the team size. Its width grows and shrinks with the plan length (from the Monday on or before the earliest date, including today, to a week after the latest date, including the Prod commit). No fixed height, and no extra padding below the lanes.
 - The hover card is drawn above the page, so it is never clipped by the scroll area.
 

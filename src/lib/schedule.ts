@@ -8,16 +8,16 @@ import { ENVIRONMENTS, type Environment, type Task } from './types';
 export const isClosed = (t: Pick<Task, 'status'>) => t.status === 'closed';
 
 /**
- * Working days a task is late (7.6). They are counted from the deadline, but only from the day the task could
- * start (`ready`): days spent waiting for late predecessors were already counted on those predecessors, so they
- * are not counted again. Counts the working days in (from, end], where from = the later of the deadline and the
- * working day before `ready`.
+ * Working days a task is late (7.6). They are counted from the deadline, but only from the day after the task
+ * could start (`ready`): days spent waiting for late predecessors were already counted on those predecessors,
+ * and the day it starts is not late yet. Counts the working days in (from, end], where from = the later of the
+ * deadline and the day `ready` starts.
  */
 function lateDays(deadline: string, end: string, ready?: { startIso: string; idx: number }): number {
   let from = deadline;
   if (ready && ready.idx > 0) {
-    const dayBefore = workdayDate(ready.startIso, ready.idx - 1);
-    if (dayBefore > from) from = dayBefore;
+    const readyDay = workdayDate(ready.startIso, ready.idx);
+    if (readyDay > from) from = readyDay;
   }
   return end > from ? workdaysAfter(from, end) : 0;
 }
@@ -66,9 +66,9 @@ function closedChain(
   startIso: string,
   dur: (t: Task) => number,
   openEf: Map<string, number>,
-): Map<string, { es: number; ef: number; late: boolean; lateWd: number }> {
+): Map<string, { es: number; ef: number; shown: number; late: boolean; lateWd: number }> {
   const byId = new Map(tasks.map((t) => [t.id, t]));
-  const out = new Map<string, { es: number; ef: number; late: boolean; lateWd: number }>();
+  const out = new Map<string, { es: number; ef: number; shown: number; late: boolean; lateWd: number }>();
   for (const id of topoOrder(new Set(byId.keys()), (x) => byId.get(x)?.blockedBy ?? [])) {
     const t = byId.get(id)!;
     if (!isClosed(t)) continue;
@@ -81,8 +81,12 @@ function closedChain(
     }
     const plannedEf = es + dur(t);
     const cl = closedLateness(t, { startIso, idx: es });
-    const ef = cl.late ? Math.max(plannedEf, closeIdxOf(t.sinceDate, startIso) + 1) : plannedEf;
-    out.set(id, { es, ef, ...cl });
+    const closeIdx = closeIdxOf(t.sinceDate, startIso);
+    // Successors wait for a late task to close, but never for an early close (they keep their planned start)
+    const ef = cl.late ? Math.max(plannedEf, closeIdx + 1) : plannedEf;
+    // The bar ends on the close day (7.6) when the task closed while it was running
+    const shown = dur(t) > 0 && closeIdx >= es ? closeIdx + 1 : plannedEf;
+    out.set(id, { es, ef, shown, ...cl });
   }
   return out;
 }
@@ -182,7 +186,7 @@ export function dependencySchedule(tasks: Task[], startIso: string, opts: Option
   const chain = closedChain(tasks, startIso, durFn, efOf(result));
   for (const [id, c] of chain) {
     const start = workdayDate(startIso, c.es);
-    const end = c.ef > c.es ? workdayDate(startIso, c.ef - 1) : start;
+    const end = c.shown > c.es ? workdayDate(startIso, c.shown - 1) : start;
     result.closed.set(id, { es: c.es, ef: c.ef, start, end, late: c.late, lateWd: c.lateWd });
   }
   return result;

@@ -192,7 +192,8 @@ export function Timeline({
                         const colourEnd = !started ? end : dl < end ? dl : end;
                         const colourDays = started && dl < start ? 0 : diffDays(start, colourEnd) + 1;
                         const stripeFrom = started && dl >= start ? addDays(dl, 1) : start;
-                        const stripeDays = (!finished || p.late) && started && end >= stripeFrom ? diffDays(stripeFrom, end) + 1 : 0;
+                        // A finished task is striped only for its late days; being pushed back is not late
+                        const stripeDays = (finished ? p.late : started) && end >= stripeFrom ? diffDays(stripeFrom, end) + 1 : 0;
                         const colourW = stripeDays === 0 ? w : colourDays === 0 ? 0 : colourDays * DW - 1;
                         const stripeW = w - colourW;
                         const barColour = colour;

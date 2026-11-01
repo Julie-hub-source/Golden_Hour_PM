@@ -105,13 +105,13 @@ test('happy case runs environments in order and skips STG when absent', () => {
 
 test('happy case: a finished environment keeps its planned dates, and the next one starts after them', () => {
   const tasks = [
-    task({ id: 'u1', duration: 3, environment: 'UAT', status: 'closed' }),
+    task({ id: 'u1', duration: 3, environment: 'UAT', status: 'closed', sinceDate: '2026-01-07' }),
     task({ id: 'p1', duration: 2, environment: 'Prod' }),
   ];
   const hc = happyCase(tasks, START);
   assert.equal(hc.envs[0].done, true);
   assert.equal(hc.envs[0].start, START, 'planned start of the closed UAT tasks');
-  assert.equal(hc.envs[0].completion, '2026-01-07', 'planned completion: 3 working days');
+  assert.equal(hc.envs[0].completion, '2026-01-07', 'completed on its close day, which is also its planned end');
   assert.equal(hc.envs[1].start, '2026-01-08');
 });
 
@@ -359,14 +359,16 @@ test('closed late: the task shows its late days, and successors do not move left
 });
 
 test('late days count only from when the task could start, not while it waited for late predecessors', () => {
-  // a: deadline Tue 6 Jan, closed Fri 9 Jan (3 days late). b: deadline Tue 6 Jan, waits for a, closed Mon 12 Jan.
-  // b could only start Mon 12 Jan, so it is 1 day late (its own), not 4 (from 6 Jan).
-  const tasks = [
+  // a: deadline Tue 6 Jan, closed Fri 9 Jan (3 days late). b: deadline Tue 6 Jan, waits for a, so it can start Mon 12 Jan.
+  // Closed Tue 13 Jan, it is 1 day late (its own), not 5 (from 6 Jan). Closed on Mon 12 Jan, its first day, it is not late.
+  const tasks = (closedOn: string) => [
     task({ id: 'a', duration: 2, deadline: '2026-01-06', status: 'closed', sinceDate: '2026-01-09' }),
-    task({ id: 'b', duration: 1, deadline: '2026-01-06', status: 'closed', sinceDate: '2026-01-12', blockedBy: ['a'] }),
+    task({ id: 'b', duration: 1, deadline: '2026-01-06', status: 'closed', sinceDate: closedOn, blockedBy: ['a'] }),
   ];
-  const b = closedPlanMap(tasks, START).get('b')!;
-  assert.deepEqual({ late: b.late, lateWd: b.lateWd, start: b.start }, { late: true, lateWd: 1, start: '2026-01-12' });
+  const later = closedPlanMap(tasks('2026-01-13'), START).get('b')!;
+  assert.deepEqual({ late: later.late, lateWd: later.lateWd, start: later.start, end: later.end }, { late: true, lateWd: 1, start: '2026-01-12', end: '2026-01-13' });
+  const firstDay = closedPlanMap(tasks('2026-01-12'), START).get('b')!;
+  assert.deepEqual({ late: firstDay.late, lateWd: firstDay.lateWd, end: firstDay.end }, { late: false, lateWd: 0, end: '2026-01-12' }, 'closed on its first day: bar ends that day, not late');
 });
 
 test('a Closed task waits for an open blocker, like an open task does', () => {
