@@ -59,7 +59,8 @@ Every date in the app uses one format: weekday, then day/month/year, with no zer
 ### Tasks, dependencies and status
 - **Depends on** means one task must finish before another can start.
 - **Status** is one of To do, In progress, In test (UAT), In test (STG), In test (Prod), or Closed. The task detail popup offers To do, In progress and Closed.
-- **Closed** tasks keep their planned dates and do not hold up the tasks after them. If a task was closed after its deadline, its late days show on the timeline and the tasks after it stay where they are.
+- **Closed** tasks do not hold up the tasks after them. A closed task's bar ends on the day it was closed. If it was closed after its deadline, its late days are striped in red and tagged Late, and the tasks after it stay where they are.
+- Setting a task to **Closed** marks all its struggles as solved.
 
 ### Struggles (🔥)
 A **struggle** is something outside the team's control that holds a task up, such as a vendor API that has not arrived. Each struggle has a reason and appears as a 🔥 on the Task Board, the Gantt chart and the dependency tree.
@@ -70,8 +71,10 @@ A **struggle** is something outside the team's control that holds a task up, suc
 ### Late tasks
 A task is **late** when all of these are true:
 - it is not Closed,
-- its deadline is before today,
+- its late-from date is before today,
 - and it has started.
+
+Late days are counted from the deadline. If a task was pushed past its deadline because it waited for other tasks, it is only late after its own planned window, so days spent waiting are not counted twice. A task that closes on the first working day it can start is not late.
 
 A late task's bar on the Gantt chart ends today. Tasks after it move later by the same number of working days. A task that has not started yet is never late, even if its original deadline has passed. Each late task sends one notification to the project members.
 
@@ -102,9 +105,9 @@ Risk is 4 for a late task, 3 for a task with an open struggle, 2 for a task on t
   - Client commitment (Prod),
   - Buffer (working days between the commitment and the projection; negative means late),
   - Progress (closed tasks out of total tasks).
-- **Environment timeline**: for UAT, STG and Prod, the start date, projected completion, late working days, the client commitment, and the buffer. Change a commitment date and it saves straight away.
+- **Environment timeline**: for UAT, STG and Prod, the start date, projected completion, late working days, the client commitment, and the buffer. Completion is the last task that has an owner (unassigned tasks still take time, but do not set the date). Once every task in an environment is closed, its completion is the day the last one was closed. Change a commitment date and it saves straight away.
 - **Workload by person** across all projects: role, number of projects, and open tasks.
-- **Task timeline** (Gantt chart): one lane per person, the whole project from first task to last. Closed tasks use their planned dates. Late tasks show a red **Late** tag. Stripes mark the part of a bar that runs past its deadline. The red dashed line is the Prod commitment, and the blue line is today. Click a bar to open the task.
+- **Task timeline** (Gantt chart): one lane per person, the whole project from first task to last. Closed tasks are greyed out and end on the day they were closed. Late tasks show a red **Late** tag. Red stripes mark only the late days of a bar, so a task pushed back but not yet late keeps its colour. The red dashed line is the Prod commitment, and the blue line is today. Click a bar to open the task.
 - **Dependency tree**: tasks flow left to right. Tasks in the same column run in parallel. Late tasks are shaded red with a "Late +N wd" label.
 - **What-if**: pick an open task and add 0–10 working days of delay to see how the finish date and the buffer change.
 - **Priority**: the ranked list described above, with each task's status colour.
@@ -113,8 +116,8 @@ Risk is 4 for a late task, 3 for a task with an open struggle, 2 for a task on t
 Six columns, one per status. Each card shows the task code and name, its environment, its deadline, the tasks it depends on, its owner, duration and status, and one 🔥 per struggle. Use the filters at the top to narrow the board by PIC, environment or status. Click a card to open the task.
 
 ### Task detail (popup)
-Shows the task's owner, duration, status, deadline, description and dependencies, the tasks that depend on it, its projected dates and slack, its struggles, and any output links. Here you can:
-- add a struggle with a reason, and mark it solved or reopen it,
+Shows the task's owner, duration, status, deadline, description and dependencies, the tasks that depend on it, its projected dates and slack, its struggles, and any output links. The status list offers To do, In progress and Closed. Here you can:
+- add a struggle with a reason, and mark it solved or reopen it (closing the task marks all of its struggles solved),
 - add an output link (PRD, SRS, test evidence, code, and so on),
 - delete the task, unless the project is locked.
 
@@ -129,6 +132,18 @@ Everyone in the team, their role, and their open tasks across all projects. PM c
 
 ### Notifications
 In-app notifications for changes in your projects, with a bell and an unread count in the header.
+
+## Test the app without waiting (test clock)
+
+To check how the app behaves on a later date, use the **Test clock** in the header. It is off by default.
+
+1. Click **Test clock: off**, pick a date, and press **Turn on**. A brown bar shows the test date on every page.
+2. While it is on, every date in the app (late days, the Today line, priorities, alerts) uses the test date.
+3. You can change a task's **status** only. Other changes are blocked until you turn the clock off.
+4. Status changes are kept in your browser only. They are not saved to the database, and no notifications or alerts are sent.
+5. Reloading the page keeps the test clock on. Closing the tab, opening the app in a new tab, or pressing **Exit test clock** returns to real time, and every task goes back to its real status.
+
+A task closed during the test keeps the test date it was closed on, even if you move the clock later.
 
 ---
 
@@ -154,7 +169,9 @@ The full business rules are in [CLAUDE.md](CLAUDE.md). This README explains how 
 - The task data model: fields, allowed values and validation rules (sections 6 and 13).
 - The scheduling formulas: dependency schedule, early and late finish, slack, critical path, complete date (section 7).
 - The Monte Carlo settings for the late probability: 1,500 runs and the triangular ranges (section 7.4).
-- The late-task rules and how a late task moves its successors (section 7.6).
+- The late-task rules, the late-from date and how a late task moves its successors (section 7.6).
+- Closed tasks: where their bar ends, and how they hold up or not hold up later tasks (sections 4, 7.1 and 9).
+- The test clock and what it does not change (section 14).
 - Each alert and its exact message, and who receives it (section 12).
 - Notification recipients for every kind of change (section 12.2).
 - Which items are defaults and which were confirmed (the [DEFAULT] and [OPEN] markers).
@@ -182,6 +199,8 @@ Next.js 16 (App Router, TypeScript) · Supabase Postgres · Vercel. The database
 | `src/lib/calendar.ts` | Working days, date parsing and formatting, Asia/Ho_Chi_Minh "today" |
 | `src/lib/schedule.ts` | Dependency schedule, lateness, happy case, simulation, priority, what-if |
 | `src/lib/permissions.ts` | All permission rules in one place |
+| `src/lib/test-clock.ts` | Test clock: the pretended date and the status changes kept while it is on |
+| `src/components/TestClock.tsx` | Test clock controls in the header |
 | `src/lib/repo.ts` | Database reads (cached per request) |
 | `src/app/actions.ts` | All writes, as server actions |
 | `src/components/` | Timeline, dependency tree, task detail, date field, and other UI parts |

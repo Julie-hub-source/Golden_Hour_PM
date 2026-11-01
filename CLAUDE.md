@@ -154,6 +154,7 @@ Work on a working-day index: index 0 is the first working day on or after the pr
   - `ES(t) = max(EF(d))` over active dependencies `d`; 0 if none
   - `EF(t) = ES(t) + duration(t)` (exclusive index)
 - Closed tasks do not delay their successors. An open task still starts after the finish of its Closed predecessors (the date the Closed task was planned to finish, or its close day if it closed late, 7.6), not on project day 0.
+- A Closed task can itself wait for an open blocker. Open and Closed tasks are therefore scheduled together, and the schedule is repeated until the two agree.
 - `finishIdx = max(EF)`.
 - Backward pass: `LF(t) = min(LS(s))` over open successors `s`, or `finishIdx` if none; `LS(t) = LF(t) − duration(t)`; `slack(t) = LF(t) − EF(t)`.
 - A task is **on the critical path** when it is open and `slack ≤ 0`.
@@ -164,7 +165,7 @@ Work on a working-day index: index 0 is the first working day on or after the pr
 Used for: the environment timeline table and the client commitment comparison.
 
 - Environments run in order: UAT, then STG (only if the project has STG tasks), then Prod.
-- Within an environment, each open task starts on the first working day after every open task it depends on has finished (the same dependency rule as 7.1). Tasks that do not depend on each other run in parallel, so a step counts once, as its longest task. Closed tasks take no time, but an open task still starts after the planned finish of its closed predecessors.
+- Within an environment, each open task starts on the first working day after every open task it depends on has finished (the same dependency rule as 7.1). Tasks that do not depend on each other run in parallel, so a step counts once, as its longest task. Closed tasks take no time in this estimate, but an open task still starts after the finish of its closed predecessors (their planned finish, or their close day if they closed late).
 - Each environment starts on the working day after the previous environment finishes. The first starts at index 0.
 - Completion of an environment = last working day of its last open task that has a PIC. Unassigned tasks still take time and delay their successors, but they do not set the completion date. If no open task in the environment has a PIC, all of them count. If all its tasks are closed, the environment is finished: it still shows its start and completion dates (the close day of its last task), and its column header reads "UAT (done)". Later environments start after those planned dates.
 - Closed tasks take no time.
@@ -182,7 +183,7 @@ Used for: the environment timeline table and the client commitment comparison.
   - tasks with an open struggle: triangular(min 1.0, mode 1.5, max 2.2)
   - other open tasks: triangular(min 0.9, mode 1.05, max 1.4)
   - closed tasks: 0
-  Recompute the happy-case Prod completion for each run. Late probability = share of runs finishing after the Prod commit.
+  Recompute the happy-case Prod completion for each run. Late probability = share of runs finishing after the Prod commit. [DEFAULT] The runs use the happy-case plan without the close-day finish of Closed tasks, so a Closed task that closed late does not move the simulated completion.
 - Health colour: red if projected Prod completion is after the Prod commit; amber if late probability > 30%; green otherwise.
 - Run the simulation server-side and cache it per project. Recompute when tasks, durations, statuses, dependencies, struggles, or commits change.
 
@@ -196,13 +197,13 @@ Used for: the environment timeline table and the client commitment comparison.
 
 ### 7.6 Late tasks
 
-- A task is **late** only when all hold: its status is not Closed, its deadline is strictly before today (Asia/Ho_Chi_Minh), and it has started (its projected start is today or earlier). A deadline of today or later is never late. A task that has not started yet is never late, even if its original deadline has passed.
+- A task is **late** only when all hold: its status is not Closed, its late-from date (below) is strictly before today (Asia/Ho_Chi_Minh), and it has started (its projected start is today or earlier). A late-from date of today or later is never late. A task that has not started yet is never late, even if its original deadline has passed. A task closed on the day it could first start is not late (its first working day is not counted).
 - **Late working days** = working days after the late-from date, up to and including today (or the close day for a Closed task). The late-from date is the deadline. If the task was pushed past its deadline by its predecessors (it could only start after the deadline), it is the end of its own window (the day it could start, plus its duration minus one working day). So a task is late only once it overruns the window its predecessors left it, and days spent waiting for late predecessors are not counted again, because those predecessors already count their own late days.
 - When a task first becomes late, one notification goes to every member of the project:
   `LATE: T04 "Dev back-end UAT" passed its deadline (Mon 13/10/2026) by 4 working day(s). PIC: Binh.`
   It is sent once per task. It is sent again only if the deadline changes or the task is reopened.
 - **Late task bars end today.** A late task is still running, so its projected finish is today (the last working day on or before today), not later. Its bar covers the start up to today.
-- **Shifted successors.** A task that has not started yet has its start and end moved by the late working days of the tasks before it. It is not late, so it shows no Late tag. If its end passes its own deadline, it shows red stripes.
+- **Shifted successors.** A task that has not started yet has its start and end moved by the late working days of the tasks before it. It is not late, so it shows no Late tag and no red stripes, even if its deadline has passed.
 - Each successor starts after the projected finish of all its open predecessors. A late predecessor therefore pushes each successor by exactly its late working days, once. The delay is not added again at each step down a chain. Closed predecessors push nothing.
 - The Monte Carlo (7.4) is not changed by late tasks. The Health environment timeline (section 8) and the dependency schedule (Gantt, dependency tree, what-if, priority) both use the late-adjusted dependency schedule, so their completion dates agree.
 
@@ -253,7 +254,7 @@ In order:
 1. Task ID, phase, environment
 2. PIC (dropdown) and PIC role
 3. Duration (dropdown 0–20 working days)
-4. Status (dropdown)
+4. Status (dropdown: To do, In progress, Closed; a task already on an In test status keeps it shown). Setting Closed also marks all its struggles solved (section 4).
 5. Task deadline (date field, section 14)
 6. Description (textarea)
 7. Depends on (multi-select of tasks; closed ones labelled "closed, not blocking")
@@ -301,7 +302,7 @@ Project priority (Highest, High, Medium, Low, Lowest) is a label only **[DEFAULT
 ### 12.1 Alert rules (confirmed)
 Checked daily by the cron job against the real system date (Asia/Ho_Chi_Minh). The app also checks when a project page loads, at most once every 10 minutes per server instance. Each alert is sent once per task until the relevant field changes.
 
-1. **Late**: an open task whose deadline is strictly before today (section 7.6). Send to every member of the project, then set `alerts.late`. Reset `alerts.late` only when the deadline changes or the task is reopened.
+1. **Late**: an open task that is late (section 7.6: its late-from date is strictly before today, and it has started). Send to every member of the project, then set `alerts.late`. Reset `alerts.late` only when the deadline changes or the task is reopened.
    Message: `LATE: {code} "{name}" passed its deadline ({deadline}) by {n} working day(s). PIC: {pic}.`
 2. **To do too long**: status is `todo` and more than 2 working days have passed since `sinceMs`. Send to every member, then set `alerts.todo`.
    Message: `⚠ {code} "{name}" has been To do for {n} working days. PIC: {pic}.`
@@ -344,7 +345,7 @@ Delivery: in-app only for now [DEFAULT].
 - Start date can be any calendar date. Index 0 is the first working day on or after it.
 - No public holidays.
 - Timezone for "today": Asia/Ho_Chi_Minh [DEFAULT].
-- **Test clock** (header, off by default): pretends today is another date, for testing without waiting. While it is on, only task status can be changed, and changes are kept in a session cookie, not the database: no notifications, no log, no alerts are written. Reloading the page keeps it on. Closing the tab, opening the app in a new tab, or turning it off ends it, and every task returns to its real status. All date logic uses the test date while it is on.
+- **Test clock** (header, off by default): pretends today is another date, for testing without waiting. While it is on, only task status can be changed, and changes are kept in a session cookie, not the database: no notifications, no log, no alerts are written. Reloading the page keeps it on. Closing the tab, opening the app in a new tab, or turning it off ends it, and every task returns to its real status. All date logic uses the test date while it is on. Each status change keeps the test date it was made on, so moving the clock later does not move a close day. Alerts are not sent while it is on.
 
 ---
 
@@ -369,6 +370,8 @@ Delivery: in-app only for now [DEFAULT].
 - **Buffer**: working days between projected completion and the commitment. Negative means late.
 - **PIC**: person in charge of a task.
 - **Draft**: a task that has not yet been created.
+- **Late-from date**: the date late working days are counted after. It is the deadline, or the end of the task's own window when its predecessors pushed it past the deadline (section 7.6).
+- **Test clock**: a header control that pretends today is another date, for testing (section 14).
 ## Naming
 
 - Member names are plain English first names with no role in the name (for example Alex, Ben). The role is shown after a dot, as **Name.Role**, for example `Alex.PM`, in dropdowns, lists, the timeline and the dependency tree.
