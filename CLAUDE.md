@@ -166,7 +166,7 @@ Used for: the environment timeline table and the client commitment comparison.
 - Environments run in order: UAT, then STG (only if the project has STG tasks), then Prod.
 - Within an environment, each open task starts on the first working day after every open task it depends on has finished (the same dependency rule as 7.1). Tasks that do not depend on each other run in parallel, so a step counts once, as its longest task. Closed tasks take no time, but an open task still starts after the planned finish of its closed predecessors.
 - Each environment starts on the working day after the previous environment finishes. The first starts at index 0.
-- Completion of an environment = last working day of its last open task. If all its tasks are closed, the environment is finished: it still shows its planned start and completion dates, and its column header reads "UAT (done)". Later environments start after those planned dates.
+- Completion of an environment = last working day of its last open task that has a PIC. Unassigned tasks still take time and delay their successors, but they do not set the completion date. If no open task in the environment has a PIC, all of them count. If all its tasks are closed, the environment is finished: it still shows its planned start and completion dates, and its column header reads "UAT (done)". Later environments start after those planned dates.
 - Closed tasks take no time.
 
 ### 7.3 Complete date (project list)
@@ -212,7 +212,7 @@ Used for: the environment timeline table and the client commitment comparison.
 
 - Columns: UAT, STG (only if the project has STG tasks), Prod.
 - Row "0) Start": start of the environment in the happy case (planned start if finished).
-- Row "1) Task completion (projected)": completion of the environment's last open task on the dependency schedule (7.1, late-adjusted), so it matches the Gantt. Planned completion if finished.
+- Row "1) Task completion (projected)": completion of the environment's last open task that has a PIC, on the dependency schedule (7.1, late-adjusted), so it matches the Gantt. Planned completion if finished.
 - Row "Late (working days)": total late working days of the open tasks in that environment, shown as +N (section 7.6). It is the largest late value of any open task in that environment, not the sum: parallel late tasks share the same calendar days (for example, two parallel tasks each 1 day late show +1). It is informational: it is already included in the completion above, and is not added again.
 - Row "2) Client commitment": editable date per environment (PM/PO). Saved automatically: picking a day in the calendar, or typing a valid date and leaving the field, saves it. There is no Save button.
 - Dates in these rows use the app date format (see section 14).

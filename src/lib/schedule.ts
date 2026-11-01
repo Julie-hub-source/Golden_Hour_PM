@@ -255,7 +255,10 @@ export function happyCase(
     // Tasks run as soon as everything they depend on has finished. Parallel tasks overlap, so a step
     // counts once (its longest task), not as a sum. The environment starts after the previous one.
     const startIdx = cursor;
+    // envEnd: last finish of every open task (the next environment starts after it).
+    // assignedEnd: last finish of the open tasks that have a PIC (the completion date shown to the team).
     let envEnd = startIdx;
+    let assignedEnd = startIdx;
     for (const t of open) {
       const live = plan?.plans.get(t.id);
       let s = startIdx;
@@ -272,11 +275,15 @@ export function happyCase(
         end: d === 0 ? workdayDate(startIso, s) : workdayDate(startIso, e - 1),
       });
       envEnd = Math.max(envEnd, e);
+      if (t.picId) assignedEnd = Math.max(assignedEnd, e);
     }
     // Late tasks in parallel share the same calendar days, so the environment is late by the largest, not the sum
     const lateDays = open.reduce((n, t) => Math.max(n, plan ? plan.plans.get(t.id)?.lateWd ?? 0 : late?.get(t.id) ?? 0), 0);
     cursor = plan ? envEnd : envEnd + lateDays;
-    const completion = cursor > startIdx ? workdayDate(startIso, cursor - 1) : workdayDate(startIso, startIdx);
+    // Completion = last assigned task. If nothing in the environment is assigned, fall back to every open task.
+    const hasAssigned = open.some((t) => t.picId);
+    const completionIdx = (hasAssigned ? assignedEnd : envEnd) + (cursor - envEnd);
+    const completion = completionIdx > startIdx ? workdayDate(startIso, completionIdx - 1) : workdayDate(startIso, startIdx);
     envs.push({
       env,
       present,

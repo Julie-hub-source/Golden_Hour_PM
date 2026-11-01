@@ -334,6 +334,15 @@ test('parallel late tasks in one environment count the largest late days, not th
   assert.equal(late.envs.find((e) => e.env === 'UAT')!.late, 1);
 });
 
+test('environment completion is the last assigned task; unassigned tasks do not set it', () => {
+  const tasks = [
+    task({ id: 'a', duration: 2, environment: 'UAT', picId: 'emma' }),
+    task({ id: 'b', duration: 3, environment: 'UAT', picId: null }),
+  ];
+  const hc = happyCase(tasks, START);
+  assert.equal(hc.envs[0].completion, '2026-01-06', 'a ends Tue 6 Jan; unassigned b (ends Thu 8 Jan) is ignored');
+});
+
 test('task deletion can be turned off per project, for everyone including PM', () => {
   const pm = { id: 'pm', role: 'PM' as const, name: 'pm' };
   const members = new Set(['pm']);
