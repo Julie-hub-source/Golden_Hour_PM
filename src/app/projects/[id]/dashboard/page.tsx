@@ -116,12 +116,13 @@ async function HealthTab({
   const [health, portfolio] = await Promise.all([getHealth(data, today), loadPortfolio()]);
   const closedCount = tasks.filter(isClosed).length;
 
-  const banner =
-    health.color === 'red' && health.projectedProd
-      ? `Projected Prod completion ${formatDate(health.projectedProd)} is after the client commit ${formatDate(project.commitProd)} by ${Math.abs(health.buffer ?? 0)} working day(s).`
-      : health.projectedProd
-        ? `On track: projected Prod completion ${formatDate(health.projectedProd)} against commit ${formatDate(project.commitProd)}.`
-        : 'All Prod tasks are closed.';
+  // One format for both states: the label is shown in bold before the banner text
+  const days = Math.abs(health.buffer ?? 0);
+  const banner = !health.projectedProd
+    ? 'All Prod tasks are closed.'
+    : health.color === 'red'
+      ? `Projected Prod completion ${formatDate(health.projectedProd)} is after the client commit ${formatDate(project.commitProd)} by ${days} working day(s).`
+      : `Projected Prod completion ${formatDate(health.projectedProd)} is within the client commit ${formatDate(project.commitProd)}, with ${days} working day(s) to spare.`;
 
   const envs = health.happy.envs;
   const commitFor = (env: string) =>
