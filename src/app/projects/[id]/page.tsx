@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { loadProjectData } from '@/lib/repo';
 import { currentAccount } from '@/lib/session';
 import { runDueAlerts } from '@/lib/notify';
+import { clockToday, readTestClock } from '@/lib/test-clock';
 import { can } from '@/lib/permissions';
 import { dependencySchedule, isClosed, envsPresent } from '@/lib/schedule';
 import { formatDate } from '@/lib/calendar';
@@ -30,7 +31,8 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const { id } = await params;
   const sp = await searchParams;
   const { actor } = await currentAccount();
-  await runDueAlerts();
+  if (!(await readTestClock())) await runDueAlerts(); // no alerts for a test date
+  const today = await clockToday();
   const data = await loadProjectData(id);
   if (!data) notFound();
 
@@ -38,7 +40,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   const memberById = new Map(members.map((m) => [m.id, m]));
   const projectMembers = members.filter((m) => memberIds.includes(m.id));
   const scope = { projectMemberIds: new Set(memberIds) };
-  const schedule = dependencySchedule(tasks, project.startDate);
+  const schedule = dependencySchedule(tasks, project.startDate, { today });
   const taskById = new Map(tasks.map((t) => [t.id, t]));
 
   // Filters combine with AND

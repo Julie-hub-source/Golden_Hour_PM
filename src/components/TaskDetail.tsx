@@ -4,6 +4,7 @@ import { currentAccount } from '@/lib/session';
 import { can, type Action } from '@/lib/permissions';
 import { dependencySchedule, downstreamIds, isClosed } from '@/lib/schedule';
 import { formatDate } from '@/lib/calendar';
+import { clockToday } from '@/lib/test-clock';
 import { DETAIL_STATUSES, OUTPUT_TYPES, STATUS_LABEL, type Status, type Task } from '@/lib/types';
 import { taskLink } from '@/lib/links';
 import { ActionForm } from '@/components/ActionForm';
@@ -31,7 +32,7 @@ export async function TaskDetail({ projectId, taskId, base }: { projectId: strin
   const allowed = (action: Action) => can(actor, action, scope).ok;
   const projectMembers = members.filter((m) => memberIds.includes(m.id));
   const taskById = new Map(tasks.map((t) => [t.id, t]));
-  const schedule = dependencySchedule(tasks, project.startDate);
+  const schedule = dependencySchedule(tasks, project.startDate, { today: await clockToday() });
   const plan = schedule.plans.get(task.id);
 
   const activeBlockers = task.blockedBy.map((b) => taskById.get(b)).filter((b): b is Task => !!b && !isClosed(b));

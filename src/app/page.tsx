@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { loadPortfolio } from '@/lib/repo';
 import { currentAccount } from '@/lib/session';
 import { runDueAlerts } from '@/lib/notify';
+import { readTestClock } from '@/lib/test-clock';
 import { can } from '@/lib/permissions';
 import { completeDate, isClosed } from '@/lib/schedule';
 import { formatDate } from '@/lib/calendar';
@@ -13,7 +14,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function ProjectsPage() {
   const { actor } = await currentAccount();
-  await runDueAlerts(); // alerts are sent on app load as well as daily (12.1)
+  // Alerts are sent on app load as well as daily (12.1). Not while the test clock is on: they would be sent for the test date.
+  if (!(await readTestClock())) await runDueAlerts();
   const pf = await loadPortfolio();
 
   return (

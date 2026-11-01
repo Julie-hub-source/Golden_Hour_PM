@@ -2,6 +2,8 @@ import 'server-only';
 import { cache } from 'react';
 import { createHash } from 'node:crypto';
 import { db } from './supabase';
+import { todayIso } from './calendar';
+import { applyTestClock, readTestClock } from './test-clock';
 import { simulateProd, type SimResult, happyCase, healthColor, type HealthColor, completeDate, bufferDays, isClosed, dependencySchedule } from './schedule';
 import type { Member, Project, ProjectData, Task, TaskIssue, TaskOutput, Role, Environment, Status, Priority, OutputType } from './types';
 
@@ -124,7 +126,9 @@ async function loadProjectDataUncached(projectId: string): Promise<PortfolioProj
     outputsByTask.set(o.task_id, list);
   }
   const issuesByTask = groupIssues(must<IssueRow[]>(issueRes));
-  const tasks = taskRows.map((t) => mapTask(t, outputsByTask.get(t.id) ?? [], issuesByTask.get(t.id) ?? []));
+  const clock = await readTestClock();
+  const mapped = taskRows.map((t) => mapTask(t, outputsByTask.get(t.id) ?? [], issuesByTask.get(t.id) ?? []));
+  const tasks = clock ? applyTestClock(mapped, clock) : mapped;
 
   return { project, members: memberList, tasks, memberIds };
 }
@@ -158,11 +162,13 @@ async function loadPortfolioUncached(): Promise<Portfolio> {
   }));
   const issuesByTask = groupIssues(must<IssueRow[]>(await db().from('task_issues').select('*').order('created_at')));
   const tasksByProject = new Map<string, Task[]>();
+  const clock = await readTestClock();
   for (const r of must<TaskRow[]>(taskRows)) {
     const list = tasksByProject.get(r.project_id) ?? [];
     list.push(mapTask(r, [], issuesByTask.get(r.id) ?? []));
     tasksByProject.set(r.project_id, list);
   }
+  if (clock) for (const [projectId, list] of tasksByProject) tasksByProject.set(projectId, applyTestClock(list, clock));
   return { members, projects, tasksByProject };
 }
 
@@ -196,10 +202,10 @@ function simInputHash(data: PortfolioProject): string {
     .digest('hex');
 }
 
-export async function getHealth(data: PortfolioProject): Promise<Health> {
+export async function getHealth(data: PortfolioProject, today: string = todayIso()): Promise<Health> {
   const { project, tasks } = data;
   // Same timing as the Gantt (dependency schedule), so Task completion matches the timeline
-  const happy = happyCase(tasks, project.startDate, undefined, undefined, dependencySchedule(tasks, project.startDate));
+  const happy = happyCase(tasks, project.startDate, undefined, undefined, dependencySchedule(tasks, project.startDate, { today }));
   const hash = simInputHash(data);
 
   let sim: SimResult | null = null;

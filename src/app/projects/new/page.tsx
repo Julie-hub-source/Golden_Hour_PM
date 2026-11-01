@@ -1,7 +1,8 @@
 import { loadMembers } from '@/lib/repo';
 import { currentAccount } from '@/lib/session';
 import { can } from '@/lib/permissions';
-import { formatDate, todayIso } from '@/lib/calendar';
+import { formatDate } from '@/lib/calendar';
+import { clockToday } from '@/lib/test-clock';
 import { ActionForm } from '@/components/ActionForm';
 import { DateField } from '@/components/DateField';
 import { memberLabel } from '@/lib/types';
@@ -15,7 +16,7 @@ export default async function NewProjectPage() {
     return <p className="empty">Only PM can create projects.</p>;
   }
   const members = await loadMembers();
-  const today = formatDate(todayIso());
+  const today = formatDate(await clockToday());
 
   return (
     <div style={{ maxWidth: 640 }}>

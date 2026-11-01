@@ -1,4 +1,4 @@
-import { addDays, diffDays, formatDate, isWeekend, todayIso } from '@/lib/calendar';
+import { addDays, diffDays, formatDate, isWeekend } from '@/lib/calendar';
 import { isClosed, type DependencySchedule } from '@/lib/schedule';
 import { ROLE_ORDER, STATUS_LABEL, memberLabel, type Member, type Task } from '@/lib/types';
 import { SegLink } from './SegLink';
@@ -37,6 +37,7 @@ export function Timeline({
   schedule,
   closedPlans,
   commitProd,
+  today,
 }: {
   /** Page the task popup opens on, e.g. /projects/x/dashboard?tab=timeline */
   baseHref: string;
@@ -46,6 +47,8 @@ export function Timeline({
   /** Dates of Closed tasks, so the whole project shows from start to end. A task closed late ends on its close day. */
   closedPlans: Map<string, { start: string; end: string; late: boolean; lateWd: number }>;
   commitProd: string;
+  /** Today in the project timezone, or the test-clock date. */
+  today: string;
 }) {
   // Open tasks use the live schedule; Closed tasks show their dates, greyed out
   const open = tasks.filter((t) => !isClosed(t) && schedule.plans.has(t.id));
@@ -57,7 +60,7 @@ export function Timeline({
       ? { ...closedPlans.get(t.id)!, critical: false }
       : schedule.plans.get(t.id)!;
 
-  const today = todayIso();
+
   const memberIndex = new Map(members.map((m, i) => [m.id, i]));
   const memberById = new Map(members.map((m) => [m.id, m]));
   const roleRank = (role: string) => {

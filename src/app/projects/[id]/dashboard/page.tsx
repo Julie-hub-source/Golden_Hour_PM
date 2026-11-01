@@ -3,9 +3,10 @@ import { notFound } from 'next/navigation';
 import { getHealth, loadPortfolio, loadProjectData } from '@/lib/repo';
 import { currentAccount } from '@/lib/session';
 import { runDueAlerts } from '@/lib/notify';
+import { clockToday, readTestClock } from '@/lib/test-clock';
 import { can } from '@/lib/permissions';
 import { bufferDays, closedPlanMap, dependencySchedule, isClosed, priorityList, whatIf } from '@/lib/schedule';
-import { formatDate, todayIso } from '@/lib/calendar';
+import { formatDate } from '@/lib/calendar';
 import { ProjectNav } from '@/components/ProjectNav';
 import { STATUS_LABEL, memberLabel } from '@/lib/types';
 import { CommitDates } from '@/components/CommitDates';
@@ -52,7 +53,8 @@ export default async function DashboardPage({ params, searchParams }: { params: 
   const sp = await searchParams;
   const tab: TabKey = (TABS.find((t) => t.key === sp.tab)?.key ?? 'health') as TabKey;
   const { actor } = await currentAccount();
-  await runDueAlerts();
+  if (!(await readTestClock())) await runDueAlerts(); // no alerts for a test date
+  const today = await clockToday();
 
   const data = await loadProjectData(id);
   if (!data) notFound();
@@ -71,7 +73,7 @@ export default async function DashboardPage({ params, searchParams }: { params: 
         ))}
       </nav>
 
-      {tab === 'health' && <HealthTab data={data} canCommit={canCommit} projectId={id} />}
+      {tab === 'health' && <HealthTab data={data} canCommit={canCommit} projectId={id} today={today} />}
 
       {tab === 'timeline' && (
         <>
@@ -79,17 +81,18 @@ export default async function DashboardPage({ params, searchParams }: { params: 
             baseHref={base}
             tasks={tasks}
             members={members}
-            schedule={dependencySchedule(tasks, project.startDate)}
+            schedule={dependencySchedule(tasks, project.startDate, { today })}
             closedPlans={closedPlanMap(tasks, project.startDate)}
             commitProd={project.commitProd}
+            today={today}
           />
-          <DependencyTree baseHref={base} tasks={tasks} members={members} schedule={dependencySchedule(tasks, project.startDate)} />
+          <DependencyTree baseHref={base} tasks={tasks} members={members} schedule={dependencySchedule(tasks, project.startDate, { today })} />
         </>
       )}
 
-      {tab === 'whatif' && <WhatIfTab tasks={tasks} startDate={project.startDate} commitProd={project.commitProd} sp={sp} projectId={id} />}
+      {tab === 'whatif' && <WhatIfTab tasks={tasks} startDate={project.startDate} commitProd={project.commitProd} sp={sp} projectId={id} today={today} />}
 
-      {tab === 'priority' && <PriorityTab tasks={tasks} members={members} startDate={project.startDate} base={base} today={todayIso()} />}
+      {tab === 'priority' && <PriorityTab tasks={tasks} members={members} startDate={project.startDate} base={base} today={today} />}
 
       {sp.open && tasks.some((t) => t.id === sp.open) && (
         <TaskModal projectId={id} taskId={sp.open} base={base} closeHref={base} />
@@ -102,14 +105,16 @@ async function HealthTab({
   data,
   canCommit,
   projectId,
+  today,
 }: {
   data: NonNullable<Awaited<ReturnType<typeof loadProjectData>>>;
   canCommit: boolean;
   projectId: string;
+  today: string;
 }) {
   const { project, tasks, members } = data;
   // The health numbers and the workload table are independent, so load them together
-  const [health, portfolio] = await Promise.all([getHealth(data), loadPortfolio()]);
+  const [health, portfolio] = await Promise.all([getHealth(data, today), loadPortfolio()]);
   const closedCount = tasks.filter(isClosed).length;
 
   const banner =
@@ -291,17 +296,19 @@ function WhatIfTab({
   commitProd,
   sp,
   projectId,
+  today,
 }: {
   tasks: Parameters<typeof whatIf>[0];
   startDate: string;
   commitProd: string;
   sp: SearchParams;
   projectId: string;
+  today: string;
 }) {
   const open = tasks.filter((t) => !isClosed(t));
   const chosen = open.find((t) => t.id === sp.task) ?? open[0];
   const delay = Math.min(10, Math.max(0, Number.parseInt(sp.delay ?? '0', 10) || 0));
-  const result = chosen ? whatIf(tasks, startDate, commitProd, chosen.id, delay) : null;
+  const result = chosen ? whatIf(tasks, startDate, commitProd, chosen.id, delay, today) : null;
   const byId = new Map(tasks.map((t) => [t.id, t]));
 
   return (
@@ -387,7 +394,7 @@ function PriorityTab({
   base: string;
   today: string;
 }) {
-  const schedule = dependencySchedule(tasks, startDate);
+  const schedule = dependencySchedule(tasks, startDate, { today });
   const items = priorityList(tasks, schedule, today);
   const nameOf = (id: string | null) => {
     const m = members.find((x) => x.id === id);

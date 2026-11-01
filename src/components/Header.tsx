@@ -5,11 +5,14 @@ import { switchAccount } from '@/app/actions';
 import { can } from '@/lib/permissions';
 import { AutoSelect } from './AutoSelect';
 import { memberLabel } from '@/lib/types';
+import { readTestClock } from '@/lib/test-clock';
+import { TestClock } from './TestClock';
 
 export async function Header() {
   const { actor, members } = await currentAccount();
   const unread = actor ? await unreadCount(actor.id) : 0;
   const canCreate = can(actor, 'project.create').ok;
+  const clock = await readTestClock();
 
   return (
     <>
@@ -38,6 +41,7 @@ export async function Header() {
           </Link>
         </div>
       </header>
+      <TestClock date={clock?.date ?? null} />
       <nav className="nav">
         <Link href="/">Projects</Link>
         <Link href="/team">Team</Link>

@@ -10,6 +10,7 @@ import { loadMembers, loadProjectData, type PortfolioProject } from '@/lib/repo'
 import { notify, pmPoAndPic } from '@/lib/notify';
 import { addDays, diffDays, formatDate, parseDateInput, todayIso } from '@/lib/calendar';
 import { buildDefaultFlow } from '@/lib/project-setup';
+import { MAX_CLOCK_CHANGES, clockToday, readTestClock, writeTestClock } from '@/lib/test-clock';
 import { canAddBlocker, dependencySchedule, isClosed } from '@/lib/schedule';
 import { OUTPUT_TYPES, PRIORITIES, ROLES, STATUS_LABEL, STATUSES, ENVIRONMENTS, type Environment, type Role, type Status, type Task } from '@/lib/types';
 
@@ -19,9 +20,15 @@ export type ActionResult = { ok: true; redirect?: string } | { ok: false; error:
 
 class UserError extends Error {}
 
-/** Wraps every action: permission and validation errors go back to the form, the rest is logged. */
-async function run(fn: () => Promise<ActionResult>): Promise<ActionResult> {
+const TEST_CLOCK_BLOCKED = 'The test clock is on. Only a task status can be changed. Exit the test clock to make other changes.';
+
+/**
+ * Wraps every action: permission and validation errors go back to the form, the rest is logged.
+ * While the test clock is on, only actions marked `testClockOk` run; they must refuse anything else themselves.
+ */
+async function run(fn: () => Promise<ActionResult>, opts: { testClockOk?: boolean } = {}): Promise<ActionResult> {
   try {
+    if (!opts.testClockOk && (await readTestClock())) throw new UserError(TEST_CLOCK_BLOCKED);
     const result = await fn();
     if (result.ok) revalidatePath('/', 'layout');
     return result;
@@ -104,7 +111,7 @@ export async function switchAccount(fd: FormData): Promise<ActionResult> {
     const jar = await cookies();
     jar.set(ACCOUNT_COOKIE, id, { path: '/', sameSite: 'lax', maxAge: 60 * 60 * 24 * 365 });
     return { ok: true };
-  });
+  }, { testClockOk: true });
 }
 
 export async function markAllNotificationsRead(): Promise<ActionResult> {
@@ -118,7 +125,27 @@ export async function markAllNotificationsRead(): Promise<ActionResult> {
       .is('read_at', null);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
-  });
+  }, { testClockOk: true });
+}
+
+/* ---------------- Test clock ---------------- */
+
+/** Turns the test clock on, or moves it to another date. Nothing is written to the database. */
+export async function setTestClock(fd: FormData): Promise<ActionResult> {
+  return run(async () => {
+    const date = parseDateOrFail(str(fd, 'date'), 'Test date');
+    const current = await readTestClock();
+    await writeTestClock({ date, statuses: current?.statuses ?? {} });
+    return { ok: true };
+  }, { testClockOk: true });
+}
+
+/** Turns the test clock off. Status changes made while it was on are dropped. */
+export async function exitTestClock(): Promise<ActionResult> {
+  return run(async () => {
+    await writeTestClock(null);
+    return { ok: true };
+  }, { testClockOk: true });
 }
 
 /* ---------------- Projects ---------------- */
@@ -442,6 +469,8 @@ export async function updateTask(fd: FormData): Promise<ActionResult> {
     const data = await loadOrFail(projectId);
     const task = taskOrFail(data, str(fd, 'taskId'));
     const scope = scopeOf(data, task);
+    const clock = await readTestClock();
+    const today = await clockToday();
 
     const patch: Record<string, unknown> = {};
     const changes: { field: keyof typeof FIELD_ACTION; text: string }[] = [];
@@ -498,7 +527,7 @@ export async function updateTask(fd: FormData): Promise<ActionResult> {
       if (status !== task.status) {
         authorize(actor, FIELD_ACTION.status, scope);
         patch.status = status;
-        patch.since_date = todayIso();
+        patch.since_date = today;
         // The To-do alert resets on any status change. The late alert resets only when the task is reopened.
         const reopened = task.status === 'closed' && status !== 'closed';
         patch.alerts = reopened ? [] : task.alerts.filter((a) => a !== 'todo');
@@ -536,6 +565,17 @@ export async function updateTask(fd: FormData): Promise<ActionResult> {
 
     if (changes.length === 0) return { ok: true };
 
+    if (clock) {
+      // Test clock: only a status change, kept in the cookie. Nothing reaches the database, notifications or the log.
+      if (!('status' in patch) || changes.some((c) => c.field !== 'status')) throw new UserError(TEST_CLOCK_BLOCKED);
+      const statuses = { ...clock.statuses, [task.id]: patch.status as Status };
+      if (Object.keys(statuses).length > MAX_CLOCK_CHANGES) {
+        throw new UserError(`The test clock can hold up to ${MAX_CLOCK_CHANGES} status changes. Exit it to clear them.`);
+      }
+      await writeTestClock({ date: clock.date, statuses });
+      return { ok: true };
+    }
+
     const up = await db().from('tasks').update(patch).eq('id', task.id);
     if (up.error) throw new Error(up.error.message);
 
@@ -549,7 +589,7 @@ export async function updateTask(fd: FormData): Promise<ActionResult> {
     }
 
     return { ok: true };
-  });
+  }, { testClockOk: true });
 }
 
 /* ---------------- Struggles (shown as flames) ---------------- */
