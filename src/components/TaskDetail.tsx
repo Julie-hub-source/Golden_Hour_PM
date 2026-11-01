@@ -4,7 +4,7 @@ import { currentAccount } from '@/lib/session';
 import { can, type Action } from '@/lib/permissions';
 import { dependencySchedule, downstreamIds, isClosed } from '@/lib/schedule';
 import { formatDate } from '@/lib/calendar';
-import { OUTPUT_TYPES, STATUSES, STATUS_LABEL, type Task } from '@/lib/types';
+import { DETAIL_STATUSES, OUTPUT_TYPES, STATUS_LABEL, type Status, type Task } from '@/lib/types';
 import { taskLink } from '@/lib/links';
 import { ActionForm } from '@/components/ActionForm';
 import { memberLabel } from '@/lib/types';
@@ -91,7 +91,8 @@ export async function TaskDetail({ projectId, taskId, base }: { projectId: strin
                 <label className="field">
                   Status
                   <select name="status" defaultValue={task.status} disabled={!allowed('task.status')}>
-                    {STATUSES.map((s) => (
+                    {/* Keep the task's current status in the list even if it is an older value, so it still shows */}
+                    {(DETAIL_STATUSES.includes(task.status as Status) ? DETAIL_STATUSES : [...DETAIL_STATUSES, task.status as Status]).map((s) => (
                       <option key={s} value={s}>
                         {STATUS_LABEL[s]}
                       </option>

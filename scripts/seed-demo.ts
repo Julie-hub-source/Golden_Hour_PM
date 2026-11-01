@@ -111,7 +111,7 @@ async function main() {
     } else if (p.end < today) {
       status = 'closed';
     } else if (p.start <= today && today <= p.end) {
-      status = 'in_progress';
+      status = t.environment === 'STG' ? 'stg' : 'in_progress';
     }
     return { ...t, status, deadline, sinceDate: status === 'todo' ? today : addDays(today, -2) };
   });
@@ -187,7 +187,7 @@ async function main() {
   const solved = issueRows.filter((i) => i.solved_at).length;
   console.log(`Created "${DEMO_NAME}" (id ${project.id}), start ${startDate}.`);
   console.log(`Today ${today} is in Internal acceptance STG.`);
-  console.log(`Tasks: ${tasks.length}. Closed ${count('closed')}. In progress ${count('in_progress')}. To do ${count('todo')}.`);
+  console.log(`Tasks: ${tasks.length}. Closed ${count('closed')}. In test STG ${count('stg')}. In progress ${count('in_progress')}. To do ${count('todo')}.`);
   console.log(`Late: ${late.join(', ')}.`);
   console.log(`Struggles: ${issueRows.length} total, ${solved} solved, ${issueRows.length - solved} open.`);
 }

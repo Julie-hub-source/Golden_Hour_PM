@@ -114,7 +114,7 @@ Creation rules:
 | environment | enum | `UAT`, `STG`, `Prod`. Explicit, not derived |
 | role | enum | role the task was designed for. Blank for custom tasks |
 | pic | member id or null | any project member |
-| status | enum | `todo`, `in_progress`, `closed`. Labels: To do, In progress, Done (the value `closed` is shown as Done) |
+| status | enum | `todo`, `in_progress`, `uat`, `stg`, `prod`, `closed`. Labels: To do, In progress, In test (UAT), In test (STG), In test (Prod), Closed. The task detail popup offers only To do, In progress and Closed (a task already on an In test status keeps it shown). The board and the other places are unchanged |
 | duration | int 0–20 | working days |
 | deadline | date | planned end for this task (inclusive) |
 | blockedBy | list of task ids | depends on: must not create a cycle |
@@ -126,7 +126,7 @@ Creation rules:
 | alerts | set | alerts already sent for this task: `late`, `todo`. Reset when status or deadline changes |
 
 Notes:
-- Status and environment are independent. Status only says whether the task is to do, in progress or closed. Environment says where in the flow it sits.
+- Status and environment are independent. A task in environment UAT can have status "In test (STG)". Allow it and do not auto-correct.
 - Outputs are **links only** (URL). No file upload and no file storage. The link is validated as an absolute http(s) URL.
 - Deleting a task removes it from other tasks' blockedBy lists. Its outputs are deleted with it [DEFAULT].
 

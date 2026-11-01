@@ -4,14 +4,20 @@ export type Role = (typeof ROLES)[number];
 export const ENVIRONMENTS = ['UAT', 'STG', 'Prod'] as const;
 export type Environment = (typeof ENVIRONMENTS)[number];
 
-export const STATUSES = ['todo', 'in_progress', 'closed'] as const;
+export const STATUSES = ['todo', 'in_progress', 'uat', 'stg', 'prod', 'closed'] as const;
 export type Status = (typeof STATUSES)[number];
 
 export const STATUS_LABEL: Record<Status, string> = {
   todo: 'To do',
   in_progress: 'In progress',
-  closed: 'Done',
+  uat: 'In test (UAT)',
+  stg: 'In test (STG)',
+  prod: 'In test (Prod)',
+  closed: 'Closed',
 };
+
+/** Statuses offered in the task detail popup. The board and older values (In test) are unchanged. */
+export const DETAIL_STATUSES: readonly Status[] = ['todo', 'in_progress', 'closed'];
 
 export const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest'] as const;
 export type Priority = (typeof PRIORITIES)[number];
