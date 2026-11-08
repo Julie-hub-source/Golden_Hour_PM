@@ -1,6 +1,6 @@
 # CLAUDE.md — Golden Hour (formerly Pulse)
 
-Slides: [Golden Hour walkthrough (Google Drive)](https://drive.google.com/file/d/1GIioVXvIGZQnRBGiSX-N0d4D8qqeCaUZ/view?usp=sharing) · also in the repo as [GOLDEN_HOUR_SLIDES.pdf](GOLDEN_HOUR_SLIDES.pdf).
+Slides: [Golden Hour presentation (Google Drive)](https://docs.google.com/presentation/d/1ZKBKj20ivy650QAa8JxgzuC4jlV_lWeV/edit?usp=sharing&ouid=105301119963354178852&rtpof=true&sd=true).
 
 Business logic specification for Golden Hour (formerly Pulse), a web app for tracking project delivery. This file describes WHAT the system must do. The implementation lives in this repository (Next.js, Supabase, Vercel); the spec and the code must agree.
 

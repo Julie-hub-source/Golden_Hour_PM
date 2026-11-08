@@ -4,7 +4,7 @@
 
 **Try it:** https://golden-hour-pm.vercel.app/
 
-**Slides:** [Golden Hour walkthrough (Google Drive)](https://drive.google.com/file/d/1GIioVXvIGZQnRBGiSX-N0d4D8qqeCaUZ/view?usp=sharing) · also in the repo as [GOLDEN_HOUR_SLIDES.pdf](GOLDEN_HOUR_SLIDES.pdf).
+**Slides:** [Golden Hour presentation (Google Drive)](https://docs.google.com/presentation/d/1ZKBKj20ivy650QAa8JxgzuC4jlV_lWeV/edit?usp=sharing&ouid=105301119963354178852&rtpof=true&sd=true).
 
 The app is a shared demo. There is no login: use the **Signed in as** menu at the top right to act as any team member. Permissions still apply to whichever member you pick, so you can see what each role is allowed to do.
 
